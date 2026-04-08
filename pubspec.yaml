@@ -1,7 +1,8 @@
 name: native_liquid_glass
 description: "Liquid Glass iOS platform views for Flutter using native UIKit components."
 version: 0.0.1
-homepage:
+homepage: https://github.com/tienanh306201z/native_liquid_glass
+repository: https://github.com/tienanh306201z/native_liquid_glass
 
 environment:
   sdk: ^3.11.0

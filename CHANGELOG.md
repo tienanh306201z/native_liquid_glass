@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3
+
+- Add Swift Package Manager (SPM) support for iOS.
+
 ## 0.0.2
 
 - Switch iOS tab bar implementation from custom SwiftUI rendering to system `UITabBarController`.

@@ -35,11 +35,18 @@ On iOS 26+, all widgets automatically adopt Apple's Liquid Glass visual style. O
 - iOS/iPadOS **26.0+** for full Liquid Glass behavior
   _(older iOS versions fall back to standard system styles)_
 
+## Integration
+
+This plugin supports both **CocoaPods** and **Swift Package Manager (SPM)**.
+
+- **CocoaPods** (default) — works automatically with `flutter pub get`
+- **SPM** — supported from Flutter 3.19+ via `ios/native_liquid_glass/Package.swift`
+
 ## Installation
 
 ```yaml
 dependencies:
-    native_liquid_glass: ^0.0.1
+    native_liquid_glass: ^0.0.3
 ```
 
 Then run `flutter pub get`.

@@ -1,0 +1,40 @@
+# Changelog
+
+## Unreleased
+
+- Switch iOS tab bar implementation from custom SwiftUI rendering to system `UITabBarController`.
+- Rely on iOS system Liquid Glass appearance on iOS 26+ instead of custom `.glassEffect()` drawing.
+- Remove unsupported action-button and custom-shape parameters from `LiquidGlassTabBar` API.
+- Add supported native customization: selected color and item positioning/spacing/width.
+- Remove `backgroundColor` and `shadowColor`; tab bar background and shadow visuals are now system-driven.
+- Remove `unselectedItemColor` parameter so unselected item appearance is system-driven by iOS Liquid Glass behavior.
+- Add iOS tab badge support per item (`iosBadgeValue`).
+- Remove `iosBadgeColor` and `iosBadgeTextColor`; badge styling is now system-driven.
+- Add three icon source options for `LiquidGlassTabItem`: `sfSymbolName`, `iconData`, and `assetIconPath` (plus selected variants).
+- Rename icon parameters to meaningful source-based names while keeping deprecated aliases (`icon`, `activeIcon`, `iosSystemImage`, `iosActiveSystemImage`).
+- Add reusable static synchronous utility `NativeLiquidGlassUtils.isDeviceQualifiedForLiquidGlassWidget()` for iOS 26+ qualification checks before rendering native widgets (no `await` required).
+- Add native customization for tab icon size via `LiquidGlassTabBar.iconSize`.
+- Add per-item icon size override via `LiquidGlassTabItem.iconSize`.
+- Add native label typography customization via `LiquidGlassTabBar.labelTextStyle` (font size/weight/family/letter spacing).
+- Add per-item selected color override via `LiquidGlassTabItem.selectedItemColor`.
+- Add SVG decoding support for `assetIconPath` and `selectedAssetIconPath` on iOS.
+- Add optional iOS action button support via `iosActionButton` and `onActionButtonPressed`.
+- Remove iOS search feature and related callbacks (`iosShowSearchButton`, `onSearchButtonPressed`, `onSearchQueryChanged`, `onSearchSubmitted`, `onSearchDismissed`).
+- Add `LiquidGlassButton` with iOS native platform-view rendering and Flutter fallback.
+- Add `LiquidGlassIconButton` with iOS native platform-view rendering and Flutter fallback.
+- Add three icon source options for buttons (`sfSymbolName`, `iconData`, `assetIconPath`) with iOS native source-priority resolution.
+- Add native button visual parameters: `iconColor`, `foregroundColor`, `glassTintColor`, `imagePadding`, and `glassInteractive`.
+- Use default UIKit button configuration APIs for button rendering; on iOS/iPadOS 26+ use `UIButton.Configuration.prominentGlass()` with interactive `UIGlassEffect`.
+- Performance: `LiquidGlassButtonGroup` icon payload resolution is now gated by an icon signature — payloads are not re-resolved unless icons actually change between widget rebuilds.
+- Performance: `LiquidGlassButtonGroup` resolves icon payloads for all buttons concurrently with `Future.wait` instead of sequentially.
+- Performance: `LiquidGlassButton` skips `TextPainter` layout cost during `build` when both explicit `width` and `height` are provided.
+- Fix: `LiquidGlassNavigationBar` now correctly syncs changes to `leadingItems`, `trailingItems`, and `titleTextStyle` to the native bar after initial creation; a matching `setItems` channel method was added on the Swift side.
+
+## 0.0.1
+
+- Convert package template to Flutter iOS plugin scaffolding.
+- Add native Liquid Glass-style tab bar behavior for iOS.
+- Add runtime fallback rendering for non-iOS platforms.
+- Expose `LiquidGlassTabBar` Flutter widget API.
+- Add interactive example app showcasing the tab bar.
+- Remove standalone `LiquidGlassView` item from the package API.

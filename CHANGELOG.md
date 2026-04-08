@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.2
 
 - Switch iOS tab bar implementation from custom SwiftUI rendering to system `UITabBarController`.
 - Rely on iOS system Liquid Glass appearance on iOS 26+ instead of custom `.glassEffect()` drawing.

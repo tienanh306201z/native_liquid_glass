@@ -46,7 +46,7 @@ This plugin supports both **CocoaPods** and **Swift Package Manager (SPM)**.
 
 ```yaml
 dependencies:
-    native_liquid_glass: ^0.1.0
+    native_liquid_glass: ^0.1.1
 ```
 
 Then run `flutter pub get`.
@@ -162,7 +162,7 @@ LiquidGlassContainer(
   ),
 )
 
-// Custom SVG shape
+// Custom SVG shape (hand-built)
 LiquidGlassContainer(
   config: LiquidGlassConfig(
     shape: LiquidGlassEffectShape.custom,
@@ -176,6 +176,19 @@ LiquidGlassContainer(
       LiquidGlassPathOp.close(),
     ],
     customPathSize: Size(200, 120),
+  ),
+  width: 200,
+  height: 120,
+  child: const Center(child: Text('Diamond')),
+)
+
+// Custom shape from an SVG path string (`d` attribute of <path>)
+LiquidGlassContainer(
+  config: LiquidGlassConfig(
+    shape: LiquidGlassEffectShape.custom,
+    customPath: 'M50 0 L150 0 L200 60 L150 120 L50 120 L0 60 Z'
+        .toLiquidGlassPath(),
+    customPathSize: const Size(200, 120),
   ),
   width: 200,
   height: 120,
@@ -381,6 +394,47 @@ final ctrl = SingleSpringController(
 ctrl.animateTo(1.0); // spring to target, preserving velocity
 ctrl.setValue(0.5);   // instant jump
 ```
+
+## SVG Path Utility
+
+`SvgPathExtension` on `String` parses SVG path data (the `d` attribute of an `<path>` element) into Flutter paths or `LiquidGlassConfig.customPath` ops — so you can take an SVG straight from a design tool and drop it into a glass container.
+
+```dart
+// Flutter Path
+final path = 'M10 10 L20 20 Z'.toPath();
+
+// Scaled Flutter Path (from SVG viewBox to target size)
+final scaled = 'M10 10 L20 20 Z'.toPathScaled(
+  viewBox: const Size(30, 30),
+  target: const Size(120, 120),
+);
+
+// Direct to LiquidGlassConfig.customPath
+LiquidGlassContainer(
+  config: LiquidGlassConfig(
+    shape: LiquidGlassEffectShape.custom,
+    customPath: 'M50 0 L150 0 L200 60 L150 120 L50 120 L0 60 Z'
+        .toLiquidGlassPath(),
+    customPathSize: const Size(200, 120),
+  ),
+  child: ...,
+)
+
+// Handles non-zero-origin viewBoxes (e.g. "1 0 24 226")
+LiquidGlassContainer(
+  config: LiquidGlassConfig(
+    shape: LiquidGlassEffectShape.custom,
+    customPath: svgD.toLiquidGlassPathScaled(
+      viewBox: const Rect.fromLTWH(1, 0, 24, 226),
+      target: const Size(48, 452),
+    ),
+    customPathSize: const Size(48, 452),
+  ),
+  child: ...,
+)
+```
+
+Leading whitespace, newlines, comments, or stray characters before the first `M`/`m` are stripped automatically, so pasted SVG strings "just work". Quadratic Béziers are normalized to cubic Béziers to match iOS's path rendering.
 
 ## How it works
 

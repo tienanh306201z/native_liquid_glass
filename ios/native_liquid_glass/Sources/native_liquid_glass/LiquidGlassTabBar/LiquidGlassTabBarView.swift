@@ -53,6 +53,26 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     refreshTabBarVisuals()
   }
 
+  /// Re-apply the selected tint whenever this view (re)attaches to a window.
+  ///
+  /// Flutter navigation push/pop can cause UIKit to re-render the tab bar
+  /// using its baked-in `UITabBarAppearance.selected.iconColor`, which
+  /// overrides the dynamic per-tab `tintColor` we apply for tabs that set
+  /// their own `selectedItemColor`. Re-applying here keeps the per-tab
+  /// color stable after navigating away and coming back.
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+
+    guard window != nil else {
+      return
+    }
+
+    applyTintColorForSelectedIndex(
+      tabBarController.selectedIndex,
+      tabBar: tabBarController.tabBar
+    )
+  }
+
   /// Attaches the internal tab bar controller to a parent view controller.
   ///
   /// UIKit requires proper parent-child containment for embedded controllers.
@@ -359,6 +379,14 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
         viewController.view.tintColor = selectedColor
       }
 
+      // Keep the baked-in UITabBarAppearance in sync with the current
+      // selected color. Without this, UIKit's internal re-renders (e.g.
+      // after a Flutter navigation push/pop) fall back to the appearance's
+      // original `selected.iconColor` — which is the GLOBAL
+      // `config.selectedItemColor` — and the per-tab color appears to
+      // "reset" until the user taps a tab.
+      syncAppearanceSelectedColor(selectedColor, tabBar: tabBar)
+
       return
     }
 
@@ -368,6 +396,45 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
 
     for viewController in tabBarController.viewControllers ?? [] {
       viewController.view.tintColor = nil
+    }
+  }
+
+  /// Updates the tab bar's appearance so its baked-in selected-state
+  /// `iconColor` and title color match [color]. Called whenever per-tab
+  /// tint changes so UIKit's internal re-renders don't revert to the
+  /// original global color.
+  private func syncAppearanceSelectedColor(_ color: UIColor, tabBar: UITabBar) {
+    // Copy to a fresh instance so UIKit reliably observes the change and
+    // triggers a redraw on all iOS versions.
+    guard let appearance = tabBar.standardAppearance.copy() as? UITabBarAppearance else {
+      return
+    }
+
+    let itemAppearances: [UITabBarItemAppearance] = [
+      appearance.stackedLayoutAppearance,
+      appearance.inlineLayoutAppearance,
+      appearance.compactInlineLayoutAppearance,
+    ]
+
+    for itemAppearance in itemAppearances {
+      itemAppearance.selected.iconColor = color
+
+      var selectedAttributes = itemAppearance.selected.titleTextAttributes
+      selectedAttributes[.foregroundColor] = color
+      itemAppearance.selected.titleTextAttributes = selectedAttributes
+
+      if #available(iOS 15.0, *) {
+        itemAppearance.focused.iconColor = color
+
+        var focusedAttributes = itemAppearance.focused.titleTextAttributes
+        focusedAttributes[.foregroundColor] = color
+        itemAppearance.focused.titleTextAttributes = focusedAttributes
+      }
+    }
+
+    tabBar.standardAppearance = appearance
+    if #available(iOS 15.0, *) {
+      tabBar.scrollEdgeAppearance = appearance
     }
   }
 

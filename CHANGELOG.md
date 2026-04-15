@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.1
+
+### SVG Path Utility
+- Add `SvgPathExtension` on `String` for converting SVG path data into Flutter `Path` or `LiquidGlassConfig.customPath` ops.
+- `toPath()` / `toPathScaled({viewBox, target})` — parse SVG path data into a Flutter `Path`, with optional scaling.
+- `toLiquidGlassPath()` — parse directly into `List<LiquidGlassPathOp>` for `LiquidGlassConfig.customPath`.
+- `toLiquidGlassPathScaled({viewBox, target})` — handles non-zero-origin viewBoxes (e.g. `"1 0 24 226"`) by translating then scaling every coordinate.
+- Accepts paths with leading whitespace, newlines, comments, or stray characters (everything before the first `M`/`m` is stripped).
+- Quadratic Béziers are normalized to cubic Béziers to match the native iOS path rendering.
+- Add `path_parsing: ^1.1.0` as a direct dependency.
+
+### LiquidGlassContainer
+- Wrap SwiftUI glass content in `GlassEffectContainer` so `Glass.clear` renders with its proper translucent appearance in light mode instead of falling back to a frosted white panel, and so `glassEffectUnionId` / `glassEffectId` modifiers work as documented.
+
+### LiquidGlassTabBar
+- Fix: per-tab `selectedItemColor` (from `LiquidGlassTabItem.selectedItemColor`) no longer reverts to the global `selectedItemColor` after a Flutter navigation push/pop. The tab bar's `UITabBarAppearance.selected` colors are now kept in sync with the currently-applied per-tab tint, and the tint is re-applied when the view re-attaches to a window.
+
 ## 0.1.0
 
 ### Spring Animation System

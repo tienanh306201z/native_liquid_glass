@@ -5,7 +5,7 @@ PODS:
   - Flutter (1.0.0)
   - integration_test (0.0.1):
     - Flutter
-  - native_liquid_glass (0.0.1):
+  - native_liquid_glass (0.0.3):
     - Flutter
     - SVGKit
   - SVGKit (3.0.0):
@@ -32,8 +32,8 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   CocoaLumberjack: 5644158777912b7de7469fa881f8a3f259c2512a
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
-  native_liquid_glass: 946899a9f07ca066a548b922f3eb1c8931e421d6
+  integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
+  native_liquid_glass: 9bd4f981833a2022c666cde9d695d969c1d9b25f
   SVGKit: 1ad7513f8c74d9652f94ed64ddecda1a23864dea
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e

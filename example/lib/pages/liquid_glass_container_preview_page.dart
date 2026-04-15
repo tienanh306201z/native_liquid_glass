@@ -16,8 +16,19 @@ class _LiquidGlassContainerPreviewPageState extends State<LiquidGlassContainerPr
   LiquidGlassEffect _effect = LiquidGlassEffect.regular;
   LiquidGlassEffectShape _shape = LiquidGlassEffectShape.rect;
   double _cornerRadius = 16;
+  double _width = 240;
+  double _height = 160;
   bool _useCustomTint = false;
   bool _interactive = false;
+  bool _animateChanges = false;
+  int _tapCount = 0;
+  int _customShapeIndex = 0; // 0 = SVG curve, 1 = diamond
+
+  List<LiquidGlassPathOp> get _currentCustomPath =>
+      _customShapeIndex == 0 ? _svgCurvePath : _diamondPath;
+
+  Size get _currentCustomPathSize =>
+      _customShapeIndex == 0 ? _svgCurvePathSize : _diamondPathSize;
 
   @override
   Widget build(BuildContext context) {
@@ -43,13 +54,21 @@ class _LiquidGlassContainerPreviewPageState extends State<LiquidGlassContainerPr
                       cornerRadius: _shape == LiquidGlassEffectShape.rect ? _cornerRadius : null,
                       tint: _useCustomTint ? colorScheme.primary : null,
                       interactive: _interactive,
+                      customPath: _shape == LiquidGlassEffectShape.custom ? _currentCustomPath : null,
+                      customPathSize: _shape == LiquidGlassEffectShape.custom ? _currentCustomPathSize : null,
                     ),
-                    width: 240,
-                    height: 160,
+                    animateChanges: _animateChanges,
+                    width: _width,
+                    height: _height,
+                    onTap: () => setState(() => _tapCount++),
                     child: Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text('Liquid Glass\nContainer', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Tapped $_tapCount times',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                       ),
                     ),
                   ),
@@ -58,87 +77,73 @@ class _LiquidGlassContainerPreviewPageState extends State<LiquidGlassContainerPr
               Card(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('Effect', style: Theme.of(context).textTheme.titleSmall),
-                      ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<LiquidGlassEffect>(
-                        segments: const [
-                          ButtonSegment(value: LiquidGlassEffect.regular, label: Text('Regular')),
-                          ButtonSegment(value: LiquidGlassEffect.clear, label: Text('Clear')),
-                        ],
-                        selected: {_effect},
-                        onSelectionChanged: (selection) {
-                          setState(() {
-                            _effect = selection.first;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('Shape', style: Theme.of(context).textTheme.titleSmall),
-                      ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<LiquidGlassEffectShape>(
-                        segments: const [
-                          ButtonSegment(value: LiquidGlassEffectShape.rect, label: Text('Rect')),
-                          ButtonSegment(value: LiquidGlassEffectShape.capsule, label: Text('Capsule')),
-                          ButtonSegment(value: LiquidGlassEffectShape.circle, label: Text('Circle')),
-                        ],
-                        selected: {_shape},
-                        onSelectionChanged: (selection) {
-                          setState(() {
-                            _shape = selection.first;
-                          });
-                        },
-                      ),
-                      if (_shape == LiquidGlassEffectShape.rect)
-                        Row(
-                          children: [
-                            const Text('Corner radius'),
-                            Expanded(
-                              child: Slider.adaptive(
-                                min: 0,
-                                max: 40,
-                                divisions: 20,
-                                value: _cornerRadius,
-                                label: _cornerRadius.toStringAsFixed(0),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _cornerRadius = value;
-                                  });
-                                },
-                              ),
-                            ),
-                            Text(_cornerRadius.toStringAsFixed(0)),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _label(context, 'Effect'),
+                        const SizedBox(height: 8),
+                        SegmentedButton<LiquidGlassEffect>(
+                          segments: const [
+                            ButtonSegment(value: LiquidGlassEffect.regular, label: Text('Regular')),
+                            ButtonSegment(value: LiquidGlassEffect.clear, label: Text('Clear')),
                           ],
+                          selected: {_effect},
+                          onSelectionChanged: (s) => setState(() => _effect = s.first),
                         ),
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Interactive'),
-                        value: _interactive,
-                        onChanged: (value) {
-                          setState(() {
-                            _interactive = value;
-                          });
-                        },
-                      ),
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Custom tint'),
-                        value: _useCustomTint,
-                        onChanged: (value) {
-                          setState(() {
-                            _useCustomTint = value;
-                          });
-                        },
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        _label(context, 'Shape'),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SegmentedButton<LiquidGlassEffectShape>(
+                            segments: const [
+                              ButtonSegment(value: LiquidGlassEffectShape.rect, label: Text('Rect')),
+                              ButtonSegment(value: LiquidGlassEffectShape.capsule, label: Text('Capsule')),
+                              ButtonSegment(value: LiquidGlassEffectShape.circle, label: Text('Circle')),
+                              ButtonSegment(value: LiquidGlassEffectShape.custom, label: Text('Custom')),
+                            ],
+                            selected: {_shape},
+                            onSelectionChanged: (s) => setState(() => _shape = s.first),
+                          ),
+                        ),
+                        if (_shape == LiquidGlassEffectShape.custom) ...[
+                          const SizedBox(height: 8),
+                          _label(context, 'Custom shape'),
+                          const SizedBox(height: 8),
+                          SegmentedButton<int>(
+                            segments: const [
+                              ButtonSegment(value: 0, label: Text('SVG Curve')),
+                              ButtonSegment(value: 1, label: Text('Diamond')),
+                            ],
+                            selected: {_customShapeIndex},
+                            onSelectionChanged: (s) => setState(() => _customShapeIndex = s.first),
+                          ),
+                        ],
+                        if (_shape == LiquidGlassEffectShape.rect)
+                          _sliderRow('Radius', _cornerRadius, 0, 40, 20, (v) => setState(() => _cornerRadius = v)),
+                        _sliderRow('Width', _width, 40, 340, 30, (v) => setState(() => _width = v)),
+                        _sliderRow('Height', _height, 40, 340, 30, (v) => setState(() => _height = v)),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Interactive'),
+                          value: _interactive,
+                          onChanged: (v) => setState(() => _interactive = v),
+                        ),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Custom tint'),
+                          value: _useCustomTint,
+                          onChanged: (v) => setState(() => _useCustomTint = v),
+                        ),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Animate changes'),
+                          value: _animateChanges,
+                          onChanged: (v) => setState(() => _animateChanges = v),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -148,4 +153,64 @@ class _LiquidGlassContainerPreviewPageState extends State<LiquidGlassContainerPr
       ),
     );
   }
+
+  Widget _label(BuildContext context, String text) => Align(
+        alignment: Alignment.centerLeft,
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+      );
+
+  Widget _sliderRow(String label, double value, double min, double max, int divisions, ValueChanged<double> onChanged) {
+    return Row(
+      children: [
+        SizedBox(width: 52, child: Text(label)),
+        Expanded(
+          child: Slider.adaptive(
+            min: min,
+            max: max,
+            divisions: divisions,
+            value: value,
+            label: value.toStringAsFixed(0),
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(width: 32, child: Text(value.toStringAsFixed(0))),
+      ],
+    );
+  }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom shape 1: SVG curve (from user's SVG path data)
+// Original viewBox: 1 0 24 226 (shifted x by -1).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _svgCurvePathSize = Size(24, 226);
+
+const _svgCurvePath = [
+  LiquidGlassPathOp.moveTo(24, 37.7794),
+  LiquidGlassPathOp.cubicTo(24, 31.0743, 24, 27.7217, 22.6889, 25.1523),
+  LiquidGlassPathOp.cubicTo(21.3779, 22.5828, 18.1255, 20.2256, 11.6208, 15.5111),
+  LiquidGlassPathOp.cubicTo(5.74982, 11.2559, 0, 5.90567, 0, 1.27187),
+  LiquidGlassPathOp.cubicTo(0, -8.19519, 0.00015, 232.779, 0, 224.806),
+  LiquidGlassPathOp.cubicTo(-0.000082, 220.573, 6.76777, 214.354, 13.1156, 209.452),
+  LiquidGlassPathOp.cubicTo(18.7325, 205.115, 21.541, 202.947, 22.7705, 200.444),
+  LiquidGlassPathOp.cubicTo(24, 197.941, 24, 194.803, 24, 188.526),
+  LiquidGlassPathOp.lineTo(24, 37.7794),
+  LiquidGlassPathOp.close(),
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom shape 2: Diamond / elongated hexagon
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _diamondPathSize = Size(200, 120);
+
+const _diamondPath = [
+  LiquidGlassPathOp.moveTo(50, 0),
+  LiquidGlassPathOp.lineTo(150, 0),
+  LiquidGlassPathOp.lineTo(200, 60),
+  LiquidGlassPathOp.lineTo(150, 120),
+  LiquidGlassPathOp.lineTo(50, 120),
+  LiquidGlassPathOp.lineTo(0, 60),
+  LiquidGlassPathOp.close(),
+];

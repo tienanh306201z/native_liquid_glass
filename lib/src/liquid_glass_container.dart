@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_config.dart';
+import 'utils/liquid_glass_spring.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// A container widget that applies a native Liquid Glass effect to its child.
@@ -9,6 +10,13 @@ import 'utils/native_liquid_glass_utils.dart';
 /// On iOS 26+, the child is rendered inside a native `UIView` with a
 /// `UIGlassEffect` overlay. On unsupported platforms, the child is returned
 /// unchanged.
+///
+/// When [config.interactive] is true, the container shows a spring press
+/// animation (scale down / bounce back) on tap, matching the feel of
+/// [LiquidGlassButton].
+///
+/// Child widgets receive touch events normally — tapping a button inside
+/// the container triggers the button, not the container's [onTap].
 class LiquidGlassContainer extends StatefulWidget {
   /// The widget to apply the glass effect to.
   final Widget child;
@@ -22,7 +30,25 @@ class LiquidGlassContainer extends StatefulWidget {
   /// Optional fixed height.
   final double? height;
 
-  const LiquidGlassContainer({super.key, required this.child, this.config = const LiquidGlassConfig(), this.width, this.height});
+  /// When true, config changes (shape, effect, tint, etc.) animate on the
+  /// native side with a spring transition instead of snapping instantly.
+  final bool animateChanges;
+
+  /// Called when the container itself is tapped (not a child widget).
+  ///
+  /// Child widgets participate in Flutter's normal gesture arena and take
+  /// priority. [onTap] only fires when no child handles the tap.
+  final VoidCallback? onTap;
+
+  const LiquidGlassContainer({
+    super.key,
+    required this.child,
+    this.config = const LiquidGlassConfig(),
+    this.width,
+    this.height,
+    this.animateChanges = false,
+    this.onTap,
+  });
 
   @override
   State<LiquidGlassContainer> createState() => _LiquidGlassContainerState();
@@ -37,6 +63,10 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
   bool? _lastInteractive;
   String? _lastGlassEffectUnionId;
   String? _lastGlassEffectId;
+  List<LiquidGlassPathOp>? _lastCustomPath;
+  Size? _lastCustomPathSize;
+
+  bool _isPressed = false;
 
   @override
   void didUpdateWidget(covariant LiquidGlassContainer oldWidget) {
@@ -47,7 +77,6 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
   @override
   void reassemble() {
     super.reassemble();
-    // Force re-sync on hot reload
     _lastEffect = null;
     _syncPropsToNativeIfNeeded();
   }
@@ -63,6 +92,8 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
     final interactive = widget.config.interactive;
     final unionId = widget.config.glassEffectUnionId;
     final effectId = widget.config.glassEffectId;
+    final customPath = widget.config.customPath;
+    final customPathSize = widget.config.customPathSize;
 
     if (_lastEffect != effect ||
         _lastShape != shape ||
@@ -70,8 +101,13 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
         _lastTint != tint ||
         _lastInteractive != interactive ||
         _lastGlassEffectUnionId != unionId ||
-        _lastGlassEffectId != effectId) {
-      await ch.invokeMethod('updateConfig', widget.config.toCreationParams());
+        _lastGlassEffectId != effectId ||
+        !identical(_lastCustomPath, customPath) ||
+        _lastCustomPathSize != customPathSize) {
+      await ch.invokeMethod('updateConfig', {
+        ...widget.config.toCreationParams(),
+        'animated': widget.animateChanges,
+      });
       _lastEffect = effect;
       _lastShape = shape;
       _lastCornerRadius = cornerRadius;
@@ -79,6 +115,8 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
       _lastInteractive = interactive;
       _lastGlassEffectUnionId = unionId;
       _lastGlassEffectId = effectId;
+      _lastCustomPath = customPath;
+      _lastCustomPathSize = customPathSize;
     }
   }
 
@@ -93,6 +131,8 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
     _lastInteractive = widget.config.interactive;
     _lastGlassEffectUnionId = widget.config.glassEffectUnionId;
     _lastGlassEffectId = widget.config.glassEffectId;
+    _lastCustomPath = widget.config.customPath;
+    _lastCustomPathSize = widget.config.customPathSize;
   }
 
   @override
@@ -103,21 +143,55 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
 
   @override
   Widget build(BuildContext context) {
-    if (NativeLiquidGlassUtils.supportsLiquidGlass) {
-      final nativeView = UiKitView(
-        viewType: 'liquid-glass-container-view',
-        creationParams: widget.config.toCreationParams(),
-        creationParamsCodec: const StandardMessageCodec(),
-        onPlatformViewCreated: _onPlatformViewCreated,
-      );
+    if (!NativeLiquidGlassUtils.supportsLiquidGlass) {
+      return const SizedBox();
+    }
 
-      return SizedBox(
-        width: widget.width,
-        height: widget.height,
-        child: Stack(fit: StackFit.passthrough, children: [nativeView, widget.child]),
+    final nativeView = UiKitView(
+      viewType: 'liquid-glass-container-view',
+      creationParams: widget.config.toCreationParams(),
+      creationParamsCodec: const StandardMessageCodec(),
+      onPlatformViewCreated: _onPlatformViewCreated,
+    );
+
+    Widget content = SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: Stack(
+        children: [
+          Positioned.fill(child: IgnorePointer(child: nativeView)),
+          widget.child,
+        ],
+      ),
+    );
+
+    // Interactive spring press animation.
+    if (widget.config.interactive) {
+      content = SpringBuilder(
+        value: _isPressed ? 0.96 : 1.0,
+        spring: LiquidGlassSpring.interactive(),
+        builder: (context, scale, child) =>
+            Transform.scale(scale: scale, child: child),
+        child: content,
       );
     }
 
-    return const SizedBox();
+    // Tap handling — children get priority via the default gesture arena.
+    // onTapDown fires immediately for visual feedback; onTapCancel fires
+    // if a child wins the arena, bouncing the scale back gracefully.
+    if (widget.config.interactive || widget.onTap != null) {
+      content = GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          widget.onTap?.call();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: content,
+      );
+    }
+
+    return content;
   }
 }

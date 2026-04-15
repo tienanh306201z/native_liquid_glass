@@ -33,6 +33,9 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     super.init(frame: .zero)
 
     backgroundColor = .clear
+    clipsToBounds = false
+    isOpaque = false
+    layer.isOpaque = false
     configureTabBarController(with: config)
   }
 
@@ -95,6 +98,9 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
 
     tabBarController.delegate = self
     tabBarController.view.backgroundColor = .clear
+    tabBarController.view.clipsToBounds = false
+    tabBarController.view.isOpaque = false
+    tabBarController.view.layer.isOpaque = false
     tabBarController.setViewControllers(viewControllers, animated: false)
 
     configureSelectionAndMode(
@@ -103,6 +109,8 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     )
 
     let tabBar = tabBarController.tabBar
+    tabBar.clipsToBounds = false
+    tabBar.layer.masksToBounds = false
     if defaultTabBarTintColor == nil {
       defaultTabBarTintColor = tabBar.tintColor
     }
@@ -496,13 +504,21 @@ final class LiquidGlassTabBarPlatformView: NSObject, FlutterPlatformView {
     nativeView.translatesAutoresizingMaskIntoConstraints = false
     nativeView.attach(to: hostViewController)
 
+    containerView.clipsToBounds = false
     containerView.backgroundColor = .clear
+    containerView.isOpaque = false
+    containerView.layer.isOpaque = false
     containerView.addSubview(nativeView)
 
+    // Constrain the native view to the bottom portion of the container.
+    // The top `glassOverflow` points stay empty so the glass effect can
+    // overflow into them via clipsToBounds = false without extending
+    // beyond the platform view frame that Flutter composites.
+    let glassOverflow = config.glassOverflow
     NSLayoutConstraint.activate([
       nativeView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
       nativeView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-      nativeView.topAnchor.constraint(equalTo: containerView.topAnchor),
+      nativeView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: glassOverflow),
       nativeView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
     ])
 

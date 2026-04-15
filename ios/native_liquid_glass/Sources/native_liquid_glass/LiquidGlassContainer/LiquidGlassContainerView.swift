@@ -9,6 +9,7 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
   private let containerView: UIView
   private let methodChannel: FlutterMethodChannel
   private var hostingController: UIHostingController<AnyView>?
+  private var viewModel: AnyObject?  // type-erased; actual type is LiquidGlassContainerViewModel (iOS 26+)
 
   init(
     frame: CGRect,
@@ -26,7 +27,7 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
 
     super.init()
 
-    applyGlassEffect(args: args)
+    setupGlassView(args: args)
     setupMethodChannelHandler()
   }
 
@@ -34,43 +35,15 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
     containerView
   }
 
-  private static func decodeColor(from value: Any?) -> UIColor? {
-    guard let numericValue = value as? NSNumber else {
-      return nil
-    }
+  // MARK: - Setup (called once)
 
-    let argb = UInt32(bitPattern: Int32(truncatingIfNeeded: numericValue.intValue))
-    let alpha = CGFloat((argb >> 24) & 0xFF) / 255.0
-    let red = CGFloat((argb >> 16) & 0xFF) / 255.0
-    let green = CGFloat((argb >> 8) & 0xFF) / 255.0
-    let blue = CGFloat(argb & 0xFF) / 255.0
-
-    return UIColor(red: red, green: green, blue: blue, alpha: alpha)
-  }
-
-  private func applyGlassEffect(args: [String: Any]?) {
-    // Remove previous hosting controller
-    hostingController?.view.removeFromSuperview()
-    hostingController = nil
-
+  private func setupGlassView(args: [String: Any]?) {
     if #available(iOS 26.0, *) {
-      let effectStr = (args?["effect"] as? String) ?? "regular"
-      let shapeStr = (args?["shape"] as? String) ?? "rect"
-      let cornerRadius = (args?["cornerRadius"] as? NSNumber)?.doubleValue
-      let interactive = (args?["interactive"] as? Bool) ?? false
-      let tint = Self.decodeColor(from: args?["tint"])
-      let unionId = args?["glassEffectUnionId"] as? String
-      let effectId = args?["glassEffectId"] as? String
+      let vm = LiquidGlassContainerViewModel()
+      vm.update(from: args, animated: false)
+      self.viewModel = vm
 
-      let swiftUIView = LiquidGlassContainerSwiftUIView(
-        effect: effectStr,
-        shape: shapeStr,
-        cornerRadius: cornerRadius.map { CGFloat($0) },
-        tint: tint,
-        interactive: interactive,
-        glassEffectUnionId: (unionId?.isEmpty == false) ? unionId : nil,
-        glassEffectId: (effectId?.isEmpty == false) ? effectId : nil
-      )
+      let swiftUIView = LiquidGlassContainerSwiftUIView(viewModel: vm)
 
       let hc = UIHostingController(rootView: AnyView(swiftUIView))
       hc.view.backgroundColor = .clear
@@ -89,6 +62,18 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
     // Pre-iOS 26: transparent view (no glass effect)
   }
 
+  // MARK: - Update (called on config changes)
+
+  private func updateGlassEffect(args: [String: Any]?, animated: Bool) {
+    if #available(iOS 26.0, *) {
+      if let vm = viewModel as? LiquidGlassContainerViewModel {
+        vm.update(from: args, animated: animated)
+      }
+    }
+  }
+
+  // MARK: - Method Channel
+
   private func setupMethodChannelHandler() {
     methodChannel.setMethodCallHandler { [weak self] call, result in
       guard let self else {
@@ -99,7 +84,8 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
       switch call.method {
       case "updateConfig":
         let args = call.arguments as? [String: Any]
-        self.applyGlassEffect(args: args)
+        let animated = (args?["animated"] as? Bool) ?? false
+        self.updateGlassEffect(args: args, animated: animated)
         result(nil)
 
       default:

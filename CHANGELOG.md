@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.1.0
+
+### Spring Animation System
+- Add `LiquidGlassSpring` with four presets: `bouncy`, `snappy`, `smooth`, `interactive`.
+- Add `SingleSpringController` and `OffsetSpringController` for imperative spring-driven values.
+- Add `SpringBuilder`, `VelocitySpringBuilder`, and `OffsetSpringBuilder` declarative widgets.
+- All builders respect `MediaQuery.disableAnimationsOf` for accessibility (reduce motion).
+
+### Custom Shape Support for LiquidGlassContainer
+- Add `LiquidGlassEffectShape.custom` for arbitrary glass container shapes.
+- Add `LiquidGlassPathOp` sealed class (`moveTo`, `lineTo`, `cubicTo`, `quadTo`, `close`) for defining custom paths.
+- Add `customPath` and `customPathSize` to `LiquidGlassConfig` — coordinates are in your SVG/design space, the native side scales automatically.
+- Native `CustomPathShape` (SwiftUI `Shape`) renders the custom path on iOS 26+.
+
+### Animated Config Transitions
+- Add `animateChanges` property to `LiquidGlassContainer`.
+- When enabled, shape/effect/tint/cornerRadius changes animate with a native SwiftUI spring transition.
+- Refactored native side from view recreation to `ObservableObject` ViewModel — the SwiftUI view stays alive across config updates.
+- Built-in shape transitions (rect/capsule/circle) use `Animatable` corner radius interpolation.
+- Custom shape transitions use `AnimatableCustomPathShape` with control point morphing via `VectorArithmetic`.
+- Built-in to/from custom transitions use opacity crossfade.
+
+### Interactive Container
+- `LiquidGlassContainer` now shows a spring press animation (scale down/bounce back) when `config.interactive` is true, matching `LiquidGlassButton` behavior.
+- Add `onTap` callback to `LiquidGlassContainer` — uses Flutter's gesture system so child widgets receive touches normally.
+- Native `UiKitView` is wrapped in `IgnorePointer`; all gesture handling is Flutter-side.
+
+### Container Sizing
+- `LiquidGlassContainer` now wraps its child size when `width`/`height` are omitted, matching Flutter `Container` behavior.
+- Native glass view uses `Positioned.fill` to match the child-determined size.
+
 ## 0.0.3
 
 - Add Swift Package Manager (SPM) support for iOS.

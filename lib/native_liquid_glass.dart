@@ -20,4 +20,5 @@ export 'src/liquid_glass_toggle.dart';
 export 'src/liquid_glass_toolbar.dart';
 export 'src/shares/liquid_glass_config.dart';
 export 'src/shares/liquid_glass_icon.dart';
+export 'src/utils/liquid_glass_spring.dart';
 export 'src/utils/native_liquid_glass_utils.dart';

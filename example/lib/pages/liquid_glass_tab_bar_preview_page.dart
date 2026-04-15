@@ -101,7 +101,63 @@ class _LiquidGlassTabBarPreviewPageState extends State<LiquidGlassTabBarPreviewP
               child: Column(
                 children: [
                   Expanded(
-                    child: Center(child: Text('Selected tab: ${items[_currentIndex].label}', style: Theme.of(context).textTheme.headlineSmall)),
+                    child: SingleChildScrollView(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Selected tab: ${items[_currentIndex].label}', style: Theme.of(context).textTheme.headlineSmall),
+                            const SizedBox(height: 24),
+                            FilledButton(
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  backgroundColor: Colors.white,
+                                  context: context,
+                                  builder: (context) => SizedBox(
+                                    height: 300,
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text('Bottom Sheet', style: Theme.of(context).textTheme.headlineSmall),
+                                          const SizedBox(height: 16),
+                                          const Text('Check if the tab bar glass effect is clipped below.'),
+                                          const SizedBox(height: 24),
+                                          FilledButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('Close'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: const Text('Show Bottom Sheet'),
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Dialog'),
+                                    content: const Text('Check if the tab bar glass effect is clipped behind this dialog.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Close'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: const Text('Show Dialog'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                   Card(
                     child: Padding(
@@ -198,12 +254,11 @@ class _LiquidGlassTabBarPreviewPageState extends State<LiquidGlassTabBarPreviewP
                           ),
                           if (_showLabels) ...[
                             Row(
-                              children: [
-                                const Text('Label size'),
+                              children: [ 
                                 Expanded(
                                   child: Slider.adaptive(
                                     min: 9,
-                                    max: 14,
+                                    max: 14, 
                                     divisions: 10,
                                     value: _labelFontSize,
                                     label: _labelFontSize.toStringAsFixed(1),
@@ -268,7 +323,7 @@ class _LiquidGlassTabBarPreviewPageState extends State<LiquidGlassTabBarPreviewP
                       ),
                     ),
                   ),
-                  const SizedBox(height: 110),
+                  const SizedBox(height: 50),
                 ],
               ),
             ),

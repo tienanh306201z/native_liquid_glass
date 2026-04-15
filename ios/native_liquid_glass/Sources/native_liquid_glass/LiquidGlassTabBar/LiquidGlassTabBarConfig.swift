@@ -308,6 +308,7 @@ struct LiquidGlassTabBarConfig {
   let itemPositioning: UITabBar.ItemPositioning
   let itemSpacing: CGFloat?
   let itemWidth: CGFloat?
+  let glassOverflow: CGFloat
 
   private static func decodeData(from value: Any?) -> Data? {
     if let typedData = value as? FlutterStandardTypedData {
@@ -448,6 +449,12 @@ struct LiquidGlassTabBarConfig {
       itemWidth = CGFloat(width)
     } else {
       itemWidth = nil
+    }
+
+    if let overflow = (args?["glassOverflow"] as? NSNumber)?.doubleValue, overflow > 0 {
+      glassOverflow = CGFloat(overflow)
+    } else {
+      glassOverflow = 0
     }
   }
 }

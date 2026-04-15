@@ -11,7 +11,7 @@ On iOS 26+, all widgets automatically adopt Apple's Liquid Glass visual style. O
 | `LiquidGlassTabBar`            | `UITabBarController`                                     |
 | `LiquidGlassButton`            | `UIButton` with glass configurations                     |
 | `LiquidGlassButtonGroup`       | Row/column of `UIButton`s with unified glass blending    |
-| `LiquidGlassContainer`         | Glass-effect `UIView` wrapping Flutter children          |
+| `LiquidGlassContainer`         | Glass-effect `UIView` with custom shapes, animated transitions, and interactive press |
 | `LiquidGlassNavigationBar`     | `UINavigationBar`                                        |
 | `LiquidGlassToolbar`           | `UIToolbar`                                              |
 | `LiquidGlassSearchBar`         | Expandable `UISearchTextField`                           |
@@ -46,7 +46,7 @@ This plugin supports both **CocoaPods** and **Swift Package Manager (SPM)**.
 
 ```yaml
 dependencies:
-    native_liquid_glass: ^0.0.3
+    native_liquid_glass: ^0.1.0
 ```
 
 Then run `flutter pub get`.
@@ -139,6 +139,7 @@ LiquidGlassButtonGroup(
 ### LiquidGlassContainer
 
 ```dart
+// Basic container
 LiquidGlassContainer(
   config: const LiquidGlassConfig(
     effect: LiquidGlassEffect.regular,
@@ -148,7 +149,44 @@ LiquidGlassContainer(
   ),
   width: 200,
   height: 80,
+  onTap: () => print('tapped'),
   child: const Center(child: Text('Glass!')),
+)
+
+// Wraps child when width/height omitted (like Flutter Container)
+LiquidGlassContainer(
+  config: const LiquidGlassConfig(shape: LiquidGlassEffectShape.rect),
+  child: Padding(
+    padding: EdgeInsets.all(20),
+    child: Text('Wraps content'),
+  ),
+)
+
+// Custom SVG shape
+LiquidGlassContainer(
+  config: LiquidGlassConfig(
+    shape: LiquidGlassEffectShape.custom,
+    customPath: [
+      LiquidGlassPathOp.moveTo(50, 0),
+      LiquidGlassPathOp.lineTo(150, 0),
+      LiquidGlassPathOp.lineTo(200, 60),
+      LiquidGlassPathOp.lineTo(150, 120),
+      LiquidGlassPathOp.lineTo(50, 120),
+      LiquidGlassPathOp.lineTo(0, 60),
+      LiquidGlassPathOp.close(),
+    ],
+    customPathSize: Size(200, 120),
+  ),
+  width: 200,
+  height: 120,
+  child: const Center(child: Text('Diamond')),
+)
+
+// Animated transitions between shapes/effects
+LiquidGlassContainer(
+  config: LiquidGlassConfig(shape: _currentShape),
+  animateChanges: true, // spring transition on config changes
+  child: myContent,
 )
 ```
 
@@ -288,6 +326,60 @@ LiquidGlassPopover.show(
 if (NativeLiquidGlassUtils.supportsLiquidGlass) {
   // Running on iOS 26+ — full Liquid Glass behavior active.
 }
+```
+
+## Spring Animation System
+
+Cupertino-style spring physics for Flutter animations, built on `SpringSimulation`.
+
+### Presets
+
+| Preset | Duration | Bounce | Use case |
+| --- | --- | --- | --- |
+| `LiquidGlassSpring.bouncy()` | 500ms | 0.3 | Playful, expressive |
+| `LiquidGlassSpring.snappy()` | 500ms | 0.15 | Quick UI transitions |
+| `LiquidGlassSpring.smooth()` | 500ms | 0.0 | Critically-damped, no overshoot |
+| `LiquidGlassSpring.interactive()` | 150ms | 0.14 | Tracking a pointer |
+
+### SpringBuilder
+
+```dart
+SpringBuilder(
+  value: _expanded ? 1.5 : 1.0,
+  spring: LiquidGlassSpring.bouncy(),
+  builder: (context, value, child) {
+    return Transform.scale(scale: value, child: child);
+  },
+  child: myWidget,
+)
+```
+
+### VelocitySpringBuilder (drag + release)
+
+```dart
+VelocitySpringBuilder(
+  value: _dragOffset,
+  active: _isDragging,
+  springWhenActive: LiquidGlassSpring.interactive(),
+  springWhenReleased: LiquidGlassSpring.snappy(),
+  builder: (context, value, velocity, child) {
+    return Transform.translate(offset: Offset(value, 0), child: child);
+  },
+  child: myWidget,
+)
+```
+
+### Controllers (imperative API)
+
+```dart
+final ctrl = SingleSpringController(
+  vsync: this,
+  spring: LiquidGlassSpring.snappy(),
+  initialValue: 0.0,
+);
+
+ctrl.animateTo(1.0); // spring to target, preserving velocity
+ctrl.setValue(0.5);   // instant jump
 ```
 
 ## How it works

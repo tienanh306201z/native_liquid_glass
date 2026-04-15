@@ -6,6 +6,11 @@ import 'package:flutter/services.dart';
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
+/// Extra height added above the native platform view frame so the iOS liquid
+/// glass visual effects (blur / glow) are not clipped when Flutter composites
+/// the view with overlays such as bottom sheets or dialogs.
+const double _kGlassEffectOverflow = 20.0;
+
 /// Item positioning behavior for iOS native `UITabBar`.
 enum LiquidGlassTabBarItemPositioning {
   /// iOS chooses the most appropriate positioning automatically.
@@ -339,6 +344,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> {
     return <String, Object?>{
       'width': resolvedWidth,
       'height': widget.height,
+      'glassOverflow': _kGlassEffectOverflow,
       'showLabels': widget.showLabels,
       'currentIndex': widget.currentIndex,
       'itemPositioning': widget.iosItemPositioning.platformValue,
@@ -441,7 +447,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> {
 
     return SizedBox(
       width: resolvedWidth,
-      height: widget.height,
+      height: widget.height + _kGlassEffectOverflow,
       child: UiKitView(
         key: nativeViewKey,
         viewType: 'liquid-glass-tab-bar-view',

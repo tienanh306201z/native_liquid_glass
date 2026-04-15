@@ -17,6 +17,7 @@ import 'liquid_glass_search_scaffold_preview_page.dart';
 import 'liquid_glass_segmented_control_preview_page.dart';
 import 'liquid_glass_sheet_preview_page.dart';
 import 'liquid_glass_slider_preview_page.dart';
+import 'liquid_glass_spring_preview_page.dart';
 import 'liquid_glass_stepper_preview_page.dart';
 import 'liquid_glass_tab_bar_preview_page.dart';
 import 'liquid_glass_toggle_preview_page.dart';
@@ -214,6 +215,15 @@ class DemoCatalogPage extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LiquidGlassProgressViewPreviewPage(onThemeChanged: onThemeChanged)));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.animation_rounded),
+            title: const Text('Spring Animation preview'),
+            subtitle: const Text('Spring presets, builders, and controllers'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LiquidGlassSpringPreviewPage(onThemeChanged: onThemeChanged)));
             },
           ),
         ],

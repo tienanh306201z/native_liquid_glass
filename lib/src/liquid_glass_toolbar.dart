@@ -1,21 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/text_style_utils.dart';
-
-/// Extra padding around the native toolbar — used uniformly on all four
-/// sides — so the Liquid Glass capsule's drop shadow and spring-press
-/// scale-up can render without being clipped by the widget's bounds.
-///
-/// Vertical overflow is added to the widget's `SizedBox` (expanding the
-/// outer widget footprint). Horizontal overflow is absorbed inside the
-/// widget's existing width on the iOS side, which also matches iOS 26
-/// floating-toolbar design where bars breathe from the screen edges.
-const double _kToolbarGlassOverflow = 12.0;
 
 /// A toolbar item.
 class LiquidGlassToolbarItem {
@@ -136,6 +124,36 @@ class LiquidGlassToolbar extends StatefulWidget {
   /// [TextStyle.fontFamily], and [TextStyle.letterSpacing].
   final TextStyle? labelTextStyle;
 
+  /// Horizontal gap between adjacent items, in points. Defaults to 8.
+  ///
+  /// Implemented as `itemSpacing / 2` of horizontal padding per item, so:
+  /// * `0` — items touch each other (capsule wraps tightly).
+  /// * `8` (default) — 8pt gap between items, 4pt inset from each end of
+  ///   the capsule.
+  /// * `16` — 16pt gap, 8pt inset.
+  ///
+  /// Must be `>= 0`.
+  final double itemSpacing;
+
+  /// Padding applied **inside each glass capsule**, between the items and
+  /// the capsule edge. Defaults to no padding.
+  ///
+  /// Because the padding lives inside the capsule's shape, it grows the
+  /// capsule visually (the pill wraps wider / taller around the items)
+  /// rather than pushing it away from the widget's outer edges — i.e.
+  /// `padding` is CSS-style padding of the capsule container, not an
+  /// outer margin. The toolbar widget still wraps tightly around the
+  /// capsule(s) in wrap-content mode.
+  ///
+  /// Horizontal padding is the most common use (breathing room inside
+  /// the pill). Vertical padding shrinks the item content area but the
+  /// capsule itself still fills `height`, so items are centered within
+  /// the remaining space.
+  ///
+  /// Pass an `EdgeInsetsDirectional` (or wrap in a `Directionality`) for
+  /// RTL-aware insets.
+  final EdgeInsetsGeometry padding;
+
   const LiquidGlassToolbar({
     super.key,
     required this.items,
@@ -145,7 +163,9 @@ class LiquidGlassToolbar extends StatefulWidget {
     this.shadowColor,
     this.iconWeight = LiquidGlassToolbarIconWeight.regular,
     this.labelTextStyle,
-  });
+    this.itemSpacing = 8,
+    this.padding = EdgeInsets.zero,
+  }) : assert(itemSpacing >= 0, 'itemSpacing must be >= 0.');
 
   @override
   State<LiquidGlassToolbar> createState() => _LiquidGlassToolbarState();
@@ -206,6 +226,8 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
       widget.shadowColor?.toARGB32(),
       widget.iconWeight,
       textStyleSignature(widget.labelTextStyle),
+      widget.itemSpacing,
+      widget.padding,
     ]);
   }
 
@@ -215,7 +237,11 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
 
     final hash = _computeConfigHash();
     if (_lastConfigHash != hash) {
-      await ch.invokeMethod('updateToolbar', _buildCreationParams());
+      final textDirection = mounted
+          ? (Directionality.maybeOf(context) ?? TextDirection.ltr)
+          : TextDirection.ltr;
+      final padding = widget.padding.resolve(textDirection);
+      await ch.invokeMethod('updateToolbar', _buildCreationParams(padding));
       _lastConfigHash = hash;
     }
   }
@@ -243,52 +269,59 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
     super.dispose();
   }
 
-  Map<String, Object?> _buildCreationParams() {
+  Map<String, Object?> _buildCreationParams([EdgeInsets? resolvedPadding]) {
     final payloads = _itemPayloads;
+    final padding = resolvedPadding ?? EdgeInsets.zero;
     return <String, Object?>{
       'items': [for (var i = 0; i < widget.items.length; i++) widget.items[i].toMap(payloads != null && i < payloads.length ? payloads[i] : null)],
       if (widget.shadowColor != null) 'shadowColor': widget.shadowColor!.toARGB32(),
       'iconWeight': widget.iconWeight.name,
       'labelStyle': textStylePayload(widget.labelTextStyle),
-      'glassOverflow': _kToolbarGlassOverflow,
+      'itemSpacing': widget.itemSpacing,
+      'paddingTop': padding.top,
+      'paddingBottom': padding.bottom,
+      'paddingLeft': padding.left,
+      'paddingRight': padding.right,
     };
   }
 
   /// Estimates the toolbar's intrinsic width in wrap-content mode.
   ///
-  /// Sums per-item natural widths (icon size, `TextPainter`-measured label
-  /// widths, fixed spacer widths) plus the glass overflow padding applied
-  /// by the SwiftUI side. Flexible spacers contribute `0` here because
-  /// there's no leftover room to distribute when the toolbar hugs its
-  /// content.
-  ///
-  /// The estimate trends slightly larger than the native Liquid Glass
-  /// render because the per-item minimum touch target (44pt) is enforced
-  /// here, mirroring the SwiftUI `.frame(minWidth: 44, minHeight: 44)`
-  /// on each item button.
-  double _estimateToolbarWidth(BuildContext context) {
-    // Outer horizontal overflow: glass shadow + press scale headroom.
-    double total = 2 * _kToolbarGlassOverflow;
+  /// Sums per-item natural widths (icon size, `TextPainter`-measured
+  /// label widths, fixed spacer widths) plus `itemSpacing` per item
+  /// (mirroring `.padding(.horizontal, itemSpacing / 2)` on each item
+  /// button), plus `padding.horizontal` per capsule *group* (since the
+  /// padding is applied inside each group's glass capsule). Flexible
+  /// spacers contribute `0` — there's no leftover room to distribute
+  /// when the toolbar hugs its content.
+  double _estimateToolbarWidth(BuildContext context, EdgeInsets resolvedPadding) {
+    double total = 0;
 
     final labelFontSize = widget.labelTextStyle?.fontSize ?? 17;
     final labelFontWeight = widget.labelTextStyle?.fontWeight ?? FontWeight.w400;
     final labelTextDirection =
         Directionality.maybeOf(context) ?? TextDirection.ltr;
 
+    bool groupOpen = false;
+    int groupCount = 0;
+
     for (final item in widget.items) {
       if (item is LiquidGlassToolbarSpacer) {
         if (item.flexible) {
-          // Flexible spacers need leftover width to expand; in wrap
-          // mode there's none, so they collapse to 0.
+          // A flexible spacer closes the current capsule group and
+          // collapses to 0 width in wrap-content mode.
+          if (groupOpen) {
+            groupCount++;
+            groupOpen = false;
+          }
           continue;
         }
         total += item.width ?? 16;
         continue;
       }
 
-      // Button item: SwiftUI renders `itemContent`.frame(minWidth: 44,
-      // minHeight: 44).padding(.horizontal, 4), so the effective width
-      // is `max(44, contentWidth + 8)`.
+      // Button item: SwiftUI renders `itemContent`.padding(.horizontal,
+      // itemSpacing / 2), so each item contributes `content + itemSpacing`.
       double contentWidth = 0;
       final iconSize = item.iconSize ?? 20;
       final hasIcon = item.icon != null;
@@ -305,9 +338,15 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
         )..layout();
         contentWidth += painter.width;
       }
-      final itemWidth = math.max(44.0, contentWidth + 8);
-      total += itemWidth;
+      total += contentWidth + widget.itemSpacing;
+      groupOpen = true;
     }
+
+    if (groupOpen) groupCount++;
+
+    // Each capsule group adds its own horizontal padding inside its
+    // glass shape.
+    total += groupCount * resolvedPadding.horizontal;
 
     return total.ceilToDouble();
   }
@@ -315,24 +354,24 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
   @override
   Widget build(BuildContext context) {
     if (NativeLiquidGlassUtils.supportsLiquidGlass) {
-      // When `widget.width` is null, wrap content via a Flutter-side
-      // estimate (matches Flutter button semantics). Explicit values
-      // are respected as-is, including `double.infinity` which resolves
-      // to "fill parent" inside the enclosing SizedBox.
-      //
-      // The outer SizedBox also expands beyond `widget.height` by
-      // 2*_kToolbarGlassOverflow so the Liquid Glass capsule's shadow
-      // and spring press scale-down render inside the platform view's
-      // bounds. The iOS side insets the SwiftUI capsule by the same
-      // `glassOverflow` so the visible bar height still equals
-      // `widget.height`.
-      final resolvedWidth = widget.width ?? _estimateToolbarWidth(context);
+      // `widget.height` maps 1:1 to the visible glass bar height — no
+      // implicit outer margin. `widget.width` (when null) wraps content
+      // via a Flutter-side estimate; explicit values are respected,
+      // including `double.infinity` for "fill parent". `widget.padding`
+      // is applied *inside* each capsule on the iOS side (grows each
+      // glass pill), so it shows up in the width estimate but doesn't
+      // affect the outer widget's height or add any extra margin.
+      final textDirection =
+          Directionality.maybeOf(context) ?? TextDirection.ltr;
+      final padding = widget.padding.resolve(textDirection);
+      final resolvedWidth =
+          widget.width ?? _estimateToolbarWidth(context, padding);
       return SizedBox(
         width: resolvedWidth,
-        height: widget.height + 2 * _kToolbarGlassOverflow,
+        height: widget.height,
         child: UiKitView(
           viewType: 'liquid-glass-toolbar-view',
-          creationParams: _buildCreationParams(),
+          creationParams: _buildCreationParams(padding),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
         ),

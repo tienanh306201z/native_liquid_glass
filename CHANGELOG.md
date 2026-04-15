@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+### LiquidGlassToolbar
+- `height` now maps 1:1 to the visible glass bar height. Reverted the 12pt vertical overflow padding added in 0.2.0 — the outer widget footprint now equals `widget.height` with no implicit margin. Setting a small `height` (e.g. 32) actually shrinks the bar instead of just shrinking the surrounding padding.
+- Dropped the implicit 44pt minimum height on toolbar items (only the horizontal 44pt floor is kept for a comfortable tap target), so heights below 44 truly shrink the bar.
+- Each capsule now snaps to an explicit `height` (from the Flutter-supplied `widget.height`) instead of relying on `.frame(maxHeight: .infinity)`, which didn't always force the full height through every SwiftUI layout path.
+- Add `itemSpacing` parameter (default `8`, in points) — the horizontal gap between adjacent items. Implemented as `itemSpacing / 2` of horizontal padding per item, so `itemSpacing` is both the gap between adjacent items and the inset from each end of the capsule.
+- Add `padding` parameter (`EdgeInsetsGeometry`, default `EdgeInsets.zero`) applied **inside each glass capsule** (CSS-style padding of the capsule container), so the pill grows around its items rather than inserting an outer margin around the widget. In wrap-content mode the widget still wraps the capsule(s) tightly. Horizontal padding is the typical use; vertical padding shrinks the item content area while the capsule keeps `height`. Supports `EdgeInsetsDirectional` for RTL.
+
 ## 0.2.0
 
 ### SVG Path Utility

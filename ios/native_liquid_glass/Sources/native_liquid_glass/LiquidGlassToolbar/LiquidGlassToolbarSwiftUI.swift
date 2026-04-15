@@ -37,7 +37,13 @@ final class LiquidGlassToolbarViewModel: ObservableObject {
   @Published var items: [Item] = []
   @Published var iconSymbolWeight: Font.Weight = .regular
   @Published var labelStyle: LabelStyle = .empty
-  @Published var glassOverflow: CGFloat = 0
+  /// Horizontal gap between adjacent items, in points. Applied per-item
+  /// as `itemSpacing / 2` of horizontal padding so the total gap between
+  /// adjacent items equals `itemSpacing`.
+  @Published var itemSpacing: CGFloat = 8
+  /// Padding applied inside each glass capsule — grows the pill around
+  /// its items instead of inserting an outer margin around the widget.
+  @Published var capsulePadding: EdgeInsets = EdgeInsets()
 
   var onItemTapped: ((String) -> Void)?
 
@@ -60,7 +66,17 @@ final class LiquidGlassToolbarViewModel: ObservableObject {
     )
     iconSymbolWeight = Self.mapFontWeight(args?["iconWeight"] as? String)
     labelStyle = Self.makeLabelStyle(from: args?["labelStyle"] as? [String: Any])
-    glassOverflow = (args?["glassOverflow"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
+    itemSpacing =
+      (args?["itemSpacing"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 8
+    func readPad(_ key: String) -> CGFloat {
+      (args?[key] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
+    }
+    capsulePadding = EdgeInsets(
+      top: readPad("paddingTop"),
+      leading: readPad("paddingLeft"),
+      bottom: readPad("paddingBottom"),
+      trailing: readPad("paddingRight")
+    )
   }
 
   // MARK: Builders
@@ -272,18 +288,18 @@ struct LiquidGlassToolbarSwiftUIView: View {
                 items: groupItems,
                 iconSymbolWeight: viewModel.iconSymbolWeight,
                 labelStyle: viewModel.labelStyle,
+                itemSpacing: viewModel.itemSpacing,
+                capsulePadding: viewModel.capsulePadding,
+                capsuleHeight: geometry.size.height,
                 onItemTapped: { id in viewModel.onItemTapped?(id) }
               )
             }
           }
         }
-        // Inset uniformly by the Flutter-supplied overflow so each capsule
-        // has room to spring out in every direction without being clipped.
-        // The visible capsule height still equals `widget.height`; the
-        // horizontal inset just means capsules don't touch the widget's
-        // left/right edges — which also matches iOS 26 floating-toolbar
-        // design (bars breathe on all sides).
-        .padding(viewModel.glassOverflow)
+        // No outer padding — `widget.height` from Flutter maps 1:1 to
+        // the visible glass bar height. Apple's `Glass.interactive()`
+        // press response is subtle enough that any minor scale-up
+        // staying inside these bounds is acceptable.
         .frame(width: geometry.size.width, height: geometry.size.height)
       }
     }
@@ -303,6 +319,15 @@ fileprivate struct ToolbarGroupCapsule: View {
   let items: [LiquidGlassToolbarViewModel.Item]
   let iconSymbolWeight: Font.Weight
   let labelStyle: LiquidGlassToolbarViewModel.LabelStyle
+  let itemSpacing: CGFloat
+  /// Padding applied *inside* this capsule — grows the glass pill so
+  /// items have breathing room between themselves and the capsule edge.
+  let capsulePadding: EdgeInsets
+  /// Explicit capsule height from the Flutter-supplied `widget.height`,
+  /// so the glass pill snaps to exactly that height instead of relying
+  /// on `.frame(maxHeight: .infinity)` (which doesn't force the full
+  /// height through every SwiftUI layout path).
+  let capsuleHeight: CGFloat
   let onItemTapped: (String) -> Void
 
   var body: some View {
@@ -311,7 +336,8 @@ fileprivate struct ToolbarGroupCapsule: View {
         itemView(for: item)
       }
     }
-    .frame(maxHeight: .infinity)
+    .padding(capsulePadding)
+    .frame(height: capsuleHeight)
     .glassEffect(.regular.interactive(), in: Capsule())
   }
 
@@ -329,8 +355,12 @@ fileprivate struct ToolbarGroupCapsule: View {
     default:
       Button(action: { onItemTapped(item.id) }) {
         itemContent(for: item)
-          .frame(minWidth: 44, minHeight: 44)
-          .padding(.horizontal, 4)
+          // Keep `minWidth: 44` for a comfortable horizontal tap target.
+          // Vertical sizing follows the toolbar height (via the capsule's
+          // `maxHeight: .infinity`) so `widget.height` actually shrinks
+          // the bar — no implicit 44pt floor.
+          .frame(minWidth: 44, maxHeight: .infinity)
+          .padding(.horizontal, itemSpacing / 2)
           .contentShape(Rectangle())
       }
       .disabled(!item.enabled)

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1
+## 0.2.0
 
 ### SVG Path Utility
 - Add `SvgPathExtension` on `String` for converting SVG path data into Flutter `Path` or `LiquidGlassConfig.customPath` ops.
@@ -13,9 +13,25 @@
 
 ### LiquidGlassContainer
 - Wrap SwiftUI glass content in `GlassEffectContainer` so `Glass.clear` renders with its proper translucent appearance in light mode instead of falling back to a frosted white panel, and so `glassEffectUnionId` / `glassEffectId` modifiers work as documented.
+- Press feedback on `interactive: true` now scales **up** to 1.04 (was: down to 0.96) so it visually mirrors the "spring out" aesthetic of Apple's native `Glass.interactive()` used by `LiquidGlassButton` and `LiquidGlassToolbar`. The container can't use native `.interactive()` directly (its `UiKitView` is `IgnorePointer`-wrapped so Flutter child widgets inside can still receive taps), so this keeps the press-response visually consistent across the plugin. Same `LiquidGlassSpring.interactive()` preset as before.
+
+### LiquidGlassButton
+- `LiquidGlassButton.icon` now wraps its content when `size` is not provided, matching Flutter button semantics. The default for `size` changed from `50` to `null`; when null, the button is sized from `iconSize` plus a minimum 44pt touch target, then refined to the native intrinsic size reported by the platform view. **Breaking** for callers that relied on the implicit `size: 50` default — pass `size: 50` explicitly to preserve the old behavior.
+- The native `getIntrinsicSize` round-trip now runs for icon-only buttons too (previously only text buttons requested it), so icon buttons with null `size` settle to the exact size Apple's Liquid Glass rendering prefers.
 
 ### LiquidGlassTabBar
 - Fix: per-tab `selectedItemColor` (from `LiquidGlassTabItem.selectedItemColor`) no longer reverts to the global `selectedItemColor` after a Flutter navigation push/pop. The tab bar's `UITabBarAppearance.selected` colors are now kept in sync with the currently-applied per-tab tint, and the tint is re-applied when the view re-attaches to a window.
+
+### LiquidGlassToolbar
+- On iOS 26+ the toolbar is now rendered as a SwiftUI `HStack` with `.glassEffect(.regular, in: Capsule())` (hosted via `UIHostingController`). `height` now actually resizes the visible Liquid Glass bar — previously the underlying `UIToolbar` locked its glass rendering to the system-intrinsic 44pt and any extra height became transparent padding.
+- Each run of items between flexible `LiquidGlassToolbarSpacer`s is now rendered as its own independent glass capsule, matching the iOS 26 split-toolbar pattern (multiple floating pill bars side-by-side). Fixed spacers stay inside their group as internal gaps.
+- Press feedback now uses Apple's native `Glass.regular.interactive()` on each capsule — the same mechanism `LiquidGlassButton` uses. iOS 26's system handles the spring-out + tint response internally, so behavior (timing, scale, damping) is identical across `LiquidGlassButton`, `LiquidGlassButtonGroup`, and `LiquidGlassToolbar`. Sibling capsules in a split toolbar are unaffected when one is pressed.
+- Fix: `LiquidGlassToolbarItem.tintColor` now actually colors the item's icon/text. Previously `.tint(...)` was applied to the item's `Button`, but our custom `ButtonStyle` only re-emits `configuration.label`, so the tint never reached the `Image`/`Text`. Tint is now applied directly via `.foregroundStyle(color)` on the visible element.
+- **Breaking:** removed `LiquidGlassToolbarItem.style` and the `LiquidGlassToolbarItemStyle` enum. Text items now render with `LiquidGlassToolbar.labelTextStyle`'s weight (or `.regular` if none supplied) — there's no longer a `.done` bold variant. If you need bold text for a specific item, pass a `labelTextStyle` on the whole toolbar.
+- The widget now reserves vertical overflow padding so the capsule's drop shadow and spring scale-down are not clipped. The visible bar still honors the supplied `height`; only the outer widget footprint grows to accommodate the overflow.
+- Item spacing tightened to match UIToolbar's visual rhythm (minimum 44pt hit targets with 4pt inter-item padding instead of the previous 12pt HStack gap).
+- Add optional `width` parameter. When null (default), the toolbar **wraps its content** — width is estimated from item sizes (`TextPainter` for labels, `iconSize` for icons, fixed spacer widths, plus glass overflow padding). Pass `double.infinity` or wrap in `Expanded` for full-parent-width behavior. Flexible spacers only expand when an explicit or `double.infinity` width is provided; in wrap-content mode they collapse to 0.
+- On iOS 15–25 the existing `UIToolbar` path is kept as a fallback (still constrained to 44pt, which matches the non-Liquid-Glass system behavior).
 
 ## 0.1.0
 

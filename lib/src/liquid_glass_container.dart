@@ -166,9 +166,19 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
     );
 
     // Interactive spring press animation.
+    //
+    // Scales UP (not down) on press to mirror the "spring out" aesthetic
+    // that `LiquidGlassButton` and `LiquidGlassToolbar` get from Apple's
+    // native `Glass.regular.interactive()` on iOS 26+. The container
+    // can't just use `.interactive()` natively because its `UiKitView`
+    // is wrapped in `IgnorePointer` (so Flutter child widgets inside
+    // the container can still receive taps) — touches never reach the
+    // native glass view, so the press feedback has to be Flutter-side.
+    // Matching the spring preset (`LiquidGlassSpring.interactive()`,
+    // 150 ms / 0.14 bounce) keeps the timing consistent across widgets.
     if (widget.config.interactive) {
       content = SpringBuilder(
-        value: _isPressed ? 0.96 : 1.0,
+        value: _isPressed ? 1.04 : 1.0,
         spring: LiquidGlassSpring.interactive(),
         builder: (context, scale, child) =>
             Transform.scale(scale: scale, child: child),

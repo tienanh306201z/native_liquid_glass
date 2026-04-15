@@ -93,6 +93,11 @@ class LiquidGlassButton extends StatefulWidget {
   final double? height;
 
   /// Square size for icon-only mode. Only used with [LiquidGlassButton.icon].
+  ///
+  /// When null, the button wraps its content — sized from [iconSize] plus
+  /// a minimum 44pt touch target, then refined to the native intrinsic
+  /// size once the platform view reports it. Matches Flutter button
+  /// semantics: no constraint → size to content.
   final double? size;
 
   /// Icon size used by native and fallback rendering.
@@ -256,11 +261,15 @@ class LiquidGlassButton extends StatefulWidget {
        assert(imagePadding >= 0, 'imagePadding must be >= 0.');
 
   /// Creates a native Liquid Glass icon-only button.
+  ///
+  /// When [size] is null (the default), the button wraps its content —
+  /// sized from [iconSize] with a minimum 44pt touch target, then
+  /// refined to the native intrinsic size reported by the platform view.
   const LiquidGlassButton.icon({
     super.key,
     required this.onPressed,
     required NativeLiquidGlassIcon this.icon,
-    this.size = 50,
+    this.size,
     this.iconSize = 20,
     this.tooltip,
     this.iconColor,
@@ -356,7 +365,9 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
     // cannot prevent this fresh view from receiving its first full sync.
     _lastConfigHash = null;
     _syncPropsToNativeIfNeeded();
-    if (!widget._iconOnly) {
+    // Refine to the native intrinsic size for text buttons (always) and for
+    // icon-only buttons that didn't pin an explicit size.
+    if (!widget._iconOnly || widget.size == null) {
       Future.delayed(const Duration(milliseconds: 10), _requestIntrinsicSize);
     }
   }
@@ -404,7 +415,7 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
     if (_lastConfigHash != hash) {
       await ch.invokeMethod('updateConfig', _buildNativeCreationParams(resolvedSize: _resolveNativeSize(context)));
       _lastConfigHash = hash;
-      if (!widget._iconOnly) {
+      if (!widget._iconOnly || widget.size == null) {
         _requestIntrinsicSize();
       }
     }
@@ -506,17 +517,39 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
     return Size(widget.width ?? estimatedSize.width, widget.height ?? estimatedSize.height);
   }
 
+  // — Icon button size helper —
+
+  /// Resolves the square size for icon-only buttons, in priority order:
+  /// 1. Explicit [LiquidGlassButton.size]
+  /// 2. Native intrinsic size reported via `getIntrinsicSize`
+  /// 3. Estimate from [LiquidGlassButton.iconSize] + minimum 44pt touch target
+  ///
+  /// When the caller omits [size], this mirrors Flutter button semantics:
+  /// the widget wraps its content instead of defaulting to a fixed size.
+  double _resolveIconOnlySize() {
+    if (widget.size != null) return widget.size!;
+    // Prefer the larger of width/height from native intrinsic so the
+    // square button honors whichever dimension the glass needs.
+    final nativeSide = (_nativeWidth != null && _nativeHeight != null)
+        ? math.max(_nativeWidth!, _nativeHeight!)
+        : null;
+    if (nativeSide != null && nativeSide > 0) return nativeSide;
+    // Fall back: iconSize + ~12pt padding each side, clamped to HIG 44pt.
+    return math.max(44.0, widget.iconSize + 24.0);
+  }
+
   // — Creation params —
 
   Map<String, Object?> _buildNativeCreationParams({Size? resolvedSize}) {
     final isIconOnly = widget._iconOnly;
     final iconMap = widget.icon?.toNativeMap(_iconPayload) ?? <String, Object?>{};
     final p = widget.padding;
+    final iconOnlySide = isIconOnly ? _resolveIconOnlySize() : null;
     return <String, Object?>{
       'title': widget.label,
       ...iconMap,
-      'width': isIconOnly ? widget.size : resolvedSize!.width,
-      'height': isIconOnly ? widget.size : resolvedSize!.height,
+      'width': isIconOnly ? iconOnlySide : resolvedSize!.width,
+      'height': isIconOnly ? iconOnlySide : resolvedSize!.height,
       'enabled': widget.onPressed != null,
       'iconOnly': isIconOnly,
       'iconSize': widget.iconSize,
@@ -550,13 +583,14 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
 
     if (NativeLiquidGlassUtils.supportsLiquidGlass) {
       if (isIconOnly) {
+        final iconSide = _resolveIconOnlySize();
         if (!nativePayloadReady) {
-          return SizedBox(width: widget.size, height: widget.size);
+          return SizedBox(width: iconSide, height: iconSide);
         }
 
         return SizedBox(
-          width: widget.size,
-          height: widget.size,
+          width: iconSide,
+          height: iconSide,
           child: UiKitView(
             viewType: 'liquid-glass-button-view',
             creationParams: _buildNativeCreationParams(),

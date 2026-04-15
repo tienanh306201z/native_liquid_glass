@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,14 +7,15 @@ import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/text_style_utils.dart';
 
-/// Style for toolbar bar button items.
-enum LiquidGlassToolbarItemStyle {
-  /// Standard weight text/icon.
-  plain,
-
-  /// Bold weight text (like a "Done" button).
-  done,
-}
+/// Extra padding around the native toolbar — used uniformly on all four
+/// sides — so the Liquid Glass capsule's drop shadow and spring-press
+/// scale-up can render without being clipped by the widget's bounds.
+///
+/// Vertical overflow is added to the widget's `SizedBox` (expanding the
+/// outer widget footprint). Horizontal overflow is absorbed inside the
+/// widget's existing width on the iOS side, which also matches iOS 26
+/// floating-toolbar design where bars breathe from the screen edges.
+const double _kToolbarGlassOverflow = 12.0;
 
 /// A toolbar item.
 class LiquidGlassToolbarItem {
@@ -33,12 +36,10 @@ class LiquidGlassToolbarItem {
 
   /// Optional per-item tint color.
   ///
-  /// When provided, overrides the toolbar-level [LiquidGlassToolbar.tintColor]
-  /// for this item only.
+  /// When provided, colors this item's icon or text directly via
+  /// `foregroundStyle` on iOS 26+. When null, the item inherits the
+  /// ambient foreground color from the host.
   final Color? tintColor;
-
-  /// Item style. [LiquidGlassToolbarItemStyle.done] renders text in bold.
-  final LiquidGlassToolbarItemStyle style;
 
   const LiquidGlassToolbarItem({
     required this.id,
@@ -47,7 +48,6 @@ class LiquidGlassToolbarItem {
     this.enabled = true,
     this.iconSize,
     this.tintColor,
-    this.style = LiquidGlassToolbarItemStyle.plain,
   });
 
   Map<String, Object?> toMap([NativeLiquidGlassIconPayload? payload]) {
@@ -60,7 +60,6 @@ class LiquidGlassToolbarItem {
       'enabled': enabled,
       if (iconSize != null) 'iconSize': iconSize,
       if (tintColor != null) 'tintColor': tintColor!.toARGB32(),
-      'style': style.name,
     };
   }
 }
@@ -94,8 +93,31 @@ class LiquidGlassToolbar extends StatefulWidget {
   /// Called when an item is tapped. Receives the item's [id].
   final ValueChanged<String>? onItemTapped;
 
-  /// Height of the toolbar. Defaults to 44.
+  /// Height of the toolbar's glass bar. Defaults to 44.
+  ///
+  /// On iOS 26+ the bar is rendered as a SwiftUI `HStack` with
+  /// `.glassEffect(.regular, in: Capsule())` and actually resizes to this
+  /// height — bar-button items stay vertically centered inside it.
+  ///
+  /// On iOS 15–25 the plugin falls back to `UIToolbar`, which locks its
+  /// visible bar to the system-intrinsic 44pt regardless of this value
+  /// (extra space becomes transparent padding below the bar).
   final double height;
+
+  /// Optional explicit width for the toolbar.
+  ///
+  /// * `null` (the default) — the toolbar **wraps its content**: width is
+  ///   estimated from the items' natural sizes (icon point size, text
+  ///   measurement via `TextPainter`, fixed spacer widths, plus the
+  ///   glass overflow padding). This matches Flutter button semantics.
+  /// * A finite value — the toolbar takes exactly that width; flexible
+  ///   `LiquidGlassToolbarSpacer`s expand into the leftover room.
+  /// * `double.infinity` — the toolbar fills its parent's width.
+  ///
+  /// Note: flexible spacers only produce a visible gap when this is
+  /// explicit. In wrap-content mode, a flexible spacer collapses to 0
+  /// because there's no extra space to distribute.
+  final double? width;
 
   /// Optional bottom shadow/separator color.
   ///
@@ -119,6 +141,7 @@ class LiquidGlassToolbar extends StatefulWidget {
     required this.items,
     this.onItemTapped,
     this.height = 44,
+    this.width,
     this.shadowColor,
     this.iconWeight = LiquidGlassToolbarIconWeight.regular,
     this.labelTextStyle,
@@ -179,7 +202,7 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
   int _computeConfigHash() {
     return Object.hashAll([
       widget.items.length,
-      Object.hashAll(widget.items.map((i) => Object.hash(i.id, i.enabled, i.icon?.nativeSignature, i.label, i.tintColor?.toARGB32(), i.style, i.iconSize))),
+      Object.hashAll(widget.items.map((i) => Object.hash(i.id, i.enabled, i.icon?.nativeSignature, i.label, i.tintColor?.toARGB32(), i.iconSize))),
       widget.shadowColor?.toARGB32(),
       widget.iconWeight,
       textStyleSignature(widget.labelTextStyle),
@@ -227,14 +250,86 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
       if (widget.shadowColor != null) 'shadowColor': widget.shadowColor!.toARGB32(),
       'iconWeight': widget.iconWeight.name,
       'labelStyle': textStylePayload(widget.labelTextStyle),
+      'glassOverflow': _kToolbarGlassOverflow,
     };
+  }
+
+  /// Estimates the toolbar's intrinsic width in wrap-content mode.
+  ///
+  /// Sums per-item natural widths (icon size, `TextPainter`-measured label
+  /// widths, fixed spacer widths) plus the glass overflow padding applied
+  /// by the SwiftUI side. Flexible spacers contribute `0` here because
+  /// there's no leftover room to distribute when the toolbar hugs its
+  /// content.
+  ///
+  /// The estimate trends slightly larger than the native Liquid Glass
+  /// render because the per-item minimum touch target (44pt) is enforced
+  /// here, mirroring the SwiftUI `.frame(minWidth: 44, minHeight: 44)`
+  /// on each item button.
+  double _estimateToolbarWidth(BuildContext context) {
+    // Outer horizontal overflow: glass shadow + press scale headroom.
+    double total = 2 * _kToolbarGlassOverflow;
+
+    final labelFontSize = widget.labelTextStyle?.fontSize ?? 17;
+    final labelFontWeight = widget.labelTextStyle?.fontWeight ?? FontWeight.w400;
+    final labelTextDirection =
+        Directionality.maybeOf(context) ?? TextDirection.ltr;
+
+    for (final item in widget.items) {
+      if (item is LiquidGlassToolbarSpacer) {
+        if (item.flexible) {
+          // Flexible spacers need leftover width to expand; in wrap
+          // mode there's none, so they collapse to 0.
+          continue;
+        }
+        total += item.width ?? 16;
+        continue;
+      }
+
+      // Button item: SwiftUI renders `itemContent`.frame(minWidth: 44,
+      // minHeight: 44).padding(.horizontal, 4), so the effective width
+      // is `max(44, contentWidth + 8)`.
+      double contentWidth = 0;
+      final iconSize = item.iconSize ?? 20;
+      final hasIcon = item.icon != null;
+      final hasLabel = (item.label?.isNotEmpty ?? false);
+      if (hasIcon) contentWidth += iconSize;
+      if (hasLabel) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: item.label,
+            style: TextStyle(fontSize: labelFontSize, fontWeight: labelFontWeight),
+          ),
+          maxLines: 1,
+          textDirection: labelTextDirection,
+        )..layout();
+        contentWidth += painter.width;
+      }
+      final itemWidth = math.max(44.0, contentWidth + 8);
+      total += itemWidth;
+    }
+
+    return total.ceilToDouble();
   }
 
   @override
   Widget build(BuildContext context) {
     if (NativeLiquidGlassUtils.supportsLiquidGlass) {
+      // When `widget.width` is null, wrap content via a Flutter-side
+      // estimate (matches Flutter button semantics). Explicit values
+      // are respected as-is, including `double.infinity` which resolves
+      // to "fill parent" inside the enclosing SizedBox.
+      //
+      // The outer SizedBox also expands beyond `widget.height` by
+      // 2*_kToolbarGlassOverflow so the Liquid Glass capsule's shadow
+      // and spring press scale-down render inside the platform view's
+      // bounds. The iOS side insets the SwiftUI capsule by the same
+      // `glassOverflow` so the visible bar height still equals
+      // `widget.height`.
+      final resolvedWidth = widget.width ?? _estimateToolbarWidth(context);
       return SizedBox(
-        height: widget.height,
+        width: resolvedWidth,
+        height: widget.height + 2 * _kToolbarGlassOverflow,
         child: UiKitView(
           viewType: 'liquid-glass-toolbar-view',
           creationParams: _buildCreationParams(),

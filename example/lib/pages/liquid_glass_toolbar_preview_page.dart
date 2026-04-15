@@ -17,7 +17,6 @@ class _LiquidGlassToolbarPreviewPageState extends State<LiquidGlassToolbarPrevie
   bool _textOnly = false;
   bool _useCustomIconSize = false;
   bool _usePerItemColor = false;
-  bool _useDoneStyle = false;
   bool _useLabelTextStyle = false;
   bool _useShadowColor = false;
   String? _lastTappedItem;
@@ -44,7 +43,6 @@ class _LiquidGlassToolbarPreviewPageState extends State<LiquidGlassToolbarPrevie
       icon: _textOnly ? null : const NativeLiquidGlassIcon.sfSymbol('archivebox.fill'),
       label: _textOnly ? 'Archive' : null,
       iconSize: _useCustomIconSize ? _iconSize : null,
-      style: _useDoneStyle ? LiquidGlassToolbarItemStyle.done : LiquidGlassToolbarItemStyle.plain,
     ),
     LiquidGlassToolbarItem(
       id: 'delete',
@@ -52,7 +50,6 @@ class _LiquidGlassToolbarPreviewPageState extends State<LiquidGlassToolbarPrevie
       label: _textOnly ? 'Delete' : null,
       iconSize: _useCustomIconSize ? _iconSize : null,
       tintColor: _usePerItemColor ? Colors.red : null,
-      style: _useDoneStyle ? LiquidGlassToolbarItemStyle.done : LiquidGlassToolbarItemStyle.plain,
     ),
   ];
 
@@ -87,6 +84,7 @@ class _LiquidGlassToolbarPreviewPageState extends State<LiquidGlassToolbarPrevie
                 items: _items,
                 shadowColor: _useShadowColor ? Colors.transparent : null,
                 iconWeight: _iconWeight,
+                height: 40,
                 labelTextStyle: _useLabelTextStyle ? const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.3) : null,
                 onItemTapped: (id) => setState(() => _lastTappedItem = id),
               ),
@@ -115,12 +113,6 @@ class _LiquidGlassToolbarPreviewPageState extends State<LiquidGlassToolbarPrevie
                           title: const Text('Per-item color (Reply=blue, Delete=red)'),
                           value: _usePerItemColor,
                           onChanged: (v) => setState(() => _usePerItemColor = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Done style (Delete button)'),
-                          value: _useDoneStyle,
-                          onChanged: (v) => setState(() => _useDoneStyle = v),
                         ),
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,

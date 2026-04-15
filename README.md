@@ -46,7 +46,7 @@ This plugin supports both **CocoaPods** and **Swift Package Manager (SPM)**.
 
 ```yaml
 dependencies:
-    native_liquid_glass: ^0.1.1
+    native_liquid_glass: ^0.2.0
 ```
 
 Then run `flutter pub get`.
@@ -227,7 +227,7 @@ LiquidGlassToolbar(
   items: const [
     LiquidGlassToolbarItem(id: 'share', icon: NativeLiquidGlassIcon.sfSymbol('square.and.arrow.up')),
     LiquidGlassToolbarSpacer(),
-    LiquidGlassToolbarItem(id: 'done', label: 'Done', style: LiquidGlassToolbarItemStyle.done),
+    LiquidGlassToolbarItem(id: 'done', label: 'Done'),
   ],
   onItemTapped: (id) {},
 )

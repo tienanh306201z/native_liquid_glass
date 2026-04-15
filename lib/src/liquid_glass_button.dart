@@ -209,9 +209,14 @@ class LiquidGlassButton extends StatefulWidget {
   /// system tint on the text.
   final Color? labelColor;
 
-  /// If true, the button shrinks to its intrinsic content width.
-  ///
-  /// Useful when placing the button inside a [Row] or other non-bounded layout.
+  /// No-op. The button already shrinks to its content width whenever
+  /// [width] is null — that path installs an `UnconstrainedBox` that
+  /// releases the parent's horizontal tight constraint. Retained only
+  /// to avoid breaking existing call sites; has no effect on layout.
+  @Deprecated(
+    'shrinkWrap has no effect. Leave `width: null` to wrap content, or '
+    'pass an explicit width (including `double.infinity` for fill-parent).',
+  )
   final bool shrinkWrap;
 
   /// Maximum number of lines for the label text.
@@ -488,12 +493,25 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
   // — Text button size helpers —
 
   Size _estimateWrapContentSize(BuildContext context) {
-    const textStyle = TextStyle(fontSize: 17, fontWeight: FontWeight.w600, height: 1.0);
+    // Match the native UIButton's label resolution: size/weight/family
+    // from `labelTextStyle` when provided, falling back to the iOS
+    // system default of 17pt / semibold. Using a hardcoded fontSize: 17
+    // here produced visibly wrong estimates on iPad when callers pass a
+    // ScreenUtil-scaled `labelTextStyle`, leaving the button at a stale
+    // size until the async `getIntrinsicSize` round-trip caught up.
+    final style = widget.labelTextStyle;
+    final resolvedStyle = TextStyle(
+      fontSize: style?.fontSize ?? 17,
+      fontWeight: style?.fontWeight ?? FontWeight.w600,
+      fontFamily: style?.fontFamily,
+      letterSpacing: style?.letterSpacing,
+      height: 1.0,
+    );
 
     final textPainter = TextPainter(
       textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
       maxLines: 1,
-      text: TextSpan(text: widget.label, style: textStyle),
+      text: TextSpan(text: widget.label, style: resolvedStyle),
     )..layout();
 
     final hasIcon = widget.icon != null;

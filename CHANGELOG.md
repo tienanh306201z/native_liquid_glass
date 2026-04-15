@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.2.2
+## 0.2.3
+
+### LiquidGlassButton
+- Fix: the Dart-side wrap-content estimator (`_estimateWrapContentSize`) was measuring text with a hardcoded `TextStyle(fontSize: 17, fontWeight: .w600)` and ignoring `widget.labelTextStyle`. That mismatched what the native `UIButton` actually renders when the caller passes a scaled `labelTextStyle` (e.g. a ScreenUtil-scaled style on iPad) — the button would sit at a stale estimated width until the async `getIntrinsicSize` round-trip caught up, which in timing-sensitive layouts looked like the button was "frozen" at the wrong width. Estimator now resolves `labelTextStyle.fontSize` / `.fontWeight` / `.fontFamily` / `.letterSpacing` before measuring, falling back to the 17pt / semibold iOS default only when the caller omits them.
+- Deprecated: `LiquidGlassButton.shrinkWrap`. The field was never wired into layout — it's a no-op — but was documented as functional, which was misleading. Actual wrap-content behavior comes from leaving `width: null` (triggers an `UnconstrainedBox` internally). Now `@Deprecated` with the correct guidance; retained for source compatibility.
+
+### SVG asset icons
+- Fix: `NativeLiquidGlassIcon.asset(...)` no longer crashes the app when the SVG has a wide viewBox (e.g. `0 0 1000 1000`) being rendered into a small icon target (e.g. 20pt). The button and toolbar decoders previously called `svgImage.size = CGSize(width: iconSize, height: iconSize)` before reading `.uiImage`, which triggers an SVGKit rendering crash at very small scale factors with certain SVG content (transforms, gradients, path numerics). Both decoders now let SVGKit render at the SVG's natural viewBox size and scale down with UIKit (matching what the tab bar decoder already does), plus gate on the rendered image having a non-zero size.
 
 ### LiquidGlassToolbar
 - `height` now maps 1:1 to the visible glass bar height. Reverted the 12pt vertical overflow padding added in 0.2.0 — the outer widget footprint now equals `widget.height` with no implicit margin. Setting a small `height` (e.g. 32) actually shrinks the bar instead of just shrinking the surrounding padding.

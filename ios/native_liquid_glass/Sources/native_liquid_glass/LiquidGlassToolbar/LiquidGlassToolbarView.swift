@@ -316,11 +316,17 @@ final class LiquidGlassToolbarPlatformView: NSObject, FlutterPlatformView {
     -> UIImage?
   {
     if let assetData {
-      if looksLikeSvg(assetData), let svg = SVGKImage(data: assetData) {
-        svg.size = CGSize(width: iconPointSize, height: iconPointSize)
-        if let rendered = svg.uiImage {
-          return rendered.withRenderingMode(.alwaysTemplate)
-        }
+      // SVG asset — let SVGKit render at the SVG's natural viewBox size
+      // and scale down with UIKit. Do NOT call `svg.size = tinyTarget`
+      // before `uiImage`: SVGKit crashes on small-scale rendering for
+      // wide viewBoxes (e.g. `0 0 1000 1000` → 20pt target).
+      if looksLikeSvg(assetData),
+        let svg = SVGKImage(data: assetData),
+        let rendered = svg.uiImage,
+        rendered.size.width > 0, rendered.size.height > 0
+      {
+        return scaleImage(rendered, to: iconPointSize, cropToAlpha: false)
+          .withRenderingMode(.alwaysTemplate)
       }
       if let rasterImage = UIImage(data: assetData) {
         return scaleImage(rasterImage, to: iconPointSize, cropToAlpha: false)

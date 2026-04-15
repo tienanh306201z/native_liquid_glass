@@ -269,11 +269,22 @@ struct LiquidGlassButtonConfig {
     if let rasterImage = UIImage(data: data) {
       return resizedImageIfNeeded(rasterImage, trimAlpha: isIconData)
     }
-    // SVG asset — render natively at the target icon size for crisp output.
+    // SVG asset.
+    //
+    // We deliberately do **not** call `svgImage.size = <small target>`
+    // before `uiImage`. SVGKit's size setter recomputes the CALayer
+    // tree with the resulting affine scale, and when the viewBox is
+    // wide (e.g. `0 0 1000 1000`) against a tiny target (e.g. 20pt)
+    // the ~0.02 scale factor crashes during render on some content
+    // (transforms, gradients, path numerics). Letting SVGKit render
+    // at the SVG's natural viewBox size and then scaling with UIKit
+    // in `resizedImageIfNeeded` is crash-safe and produces the same
+    // visual result.
     guard Self.looksLikeSvg(data) else { return nil }
-    let svgImage = SVGKImage(data: data)
-    svgImage?.size = CGSize(width: iconSize, height: iconSize)
-    guard let image = svgImage?.uiImage else { return nil }
+    guard let svgImage = SVGKImage(data: data),
+      let image = svgImage.uiImage,
+      image.size.width > 0, image.size.height > 0
+    else { return nil }
     return resizedImageIfNeeded(image, trimAlpha: false)
   }
 

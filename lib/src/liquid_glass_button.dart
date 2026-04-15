@@ -584,31 +584,52 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
     if (NativeLiquidGlassUtils.supportsLiquidGlass) {
       if (isIconOnly) {
         final iconSide = _resolveIconOnlySize();
-        if (!nativePayloadReady) {
-          return SizedBox(width: iconSide, height: iconSide);
+        Widget iconContent = !nativePayloadReady
+            ? SizedBox(width: iconSide, height: iconSide)
+            : SizedBox(
+                width: iconSide,
+                height: iconSide,
+                child: UiKitView(
+                  viewType: 'liquid-glass-button-view',
+                  creationParams: _buildNativeCreationParams(),
+                  creationParamsCodec: const StandardMessageCodec(),
+                  onPlatformViewCreated: _onPlatformViewCreated,
+                ),
+              );
+        // When the caller asked for wrap-content (`size: null`), release
+        // the horizontal tight constraint from the parent so the button
+        // actually shrinks to `iconSide`. Without this, a stretched
+        // `Column` (or other tight-width parent) clamps the SizedBox up
+        // to the parent's width and the button swells to full width —
+        // which is what was being observed on iPad.
+        if (widget.size == null) {
+          iconContent = UnconstrainedBox(
+            constrainedAxis: Axis.vertical,
+            alignment: AlignmentDirectional.centerStart,
+            child: iconContent,
+          );
         }
-
-        return SizedBox(
-          width: iconSide,
-          height: iconSide,
-          child: UiKitView(
-            viewType: 'liquid-glass-button-view',
-            creationParams: _buildNativeCreationParams(),
-            creationParamsCodec: const StandardMessageCodec(),
-            onPlatformViewCreated: _onPlatformViewCreated,
-          ),
-        );
+        return iconContent;
       }
 
       if (!nativePayloadReady) {
         final fallbackSize = _resolveNativeSize(context);
-        return SizedBox(width: fallbackSize.width, height: fallbackSize.height);
+        Widget placeholder =
+            SizedBox(width: fallbackSize.width, height: fallbackSize.height);
+        if (widget.width == null) {
+          placeholder = UnconstrainedBox(
+            constrainedAxis: Axis.vertical,
+            alignment: AlignmentDirectional.centerStart,
+            child: placeholder,
+          );
+        }
+        return placeholder;
       }
 
       final estimated = _resolveNativeSize(context);
       final nativeSize = Size(widget.width ?? _nativeWidth ?? estimated.width, widget.height ?? _nativeHeight ?? estimated.height);
 
-      return SizedBox(
+      Widget textContent = SizedBox(
         width: nativeSize.width,
         height: nativeSize.height,
         child: UiKitView(
@@ -618,6 +639,15 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
           onPlatformViewCreated: _onPlatformViewCreated,
         ),
       );
+      // Same wrap-content treatment as the icon-only path.
+      if (widget.width == null) {
+        textContent = UnconstrainedBox(
+          constrainedAxis: Axis.vertical,
+          alignment: AlignmentDirectional.centerStart,
+          child: textContent,
+        );
+      }
+      return textContent;
     }
 
     return const SizedBox();

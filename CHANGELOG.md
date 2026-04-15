@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.1
+## 0.2.2
 
 ### LiquidGlassToolbar
 - `height` now maps 1:1 to the visible glass bar height. Reverted the 12pt vertical overflow padding added in 0.2.0 — the outer widget footprint now equals `widget.height` with no implicit margin. Setting a small `height` (e.g. 32) actually shrinks the bar instead of just shrinking the surrounding padding.
@@ -8,6 +8,13 @@
 - Each capsule now snaps to an explicit `height` (from the Flutter-supplied `widget.height`) instead of relying on `.frame(maxHeight: .infinity)`, which didn't always force the full height through every SwiftUI layout path.
 - Add `itemSpacing` parameter (default `8`, in points) — the horizontal gap between adjacent items. Implemented as `itemSpacing / 2` of horizontal padding per item, so `itemSpacing` is both the gap between adjacent items and the inset from each end of the capsule.
 - Add `padding` parameter (`EdgeInsetsGeometry`, default `EdgeInsets.zero`) applied **inside each glass capsule** (CSS-style padding of the capsule container), so the pill grows around its items rather than inserting an outer margin around the widget. In wrap-content mode the widget still wraps the capsule(s) tightly. Horizontal padding is the typical use; vertical padding shrinks the item content area while the capsule keeps `height`. Supports `EdgeInsetsDirectional` for RTL.
+- Fix: wrap-content (`width: null`) no longer silently swells to the parent's width when the toolbar sits inside a tight-horizontal parent (e.g. `Column(crossAxisAlignment: .stretch)` or a `Padding` inside one). Flutter clamps a child's preferred size up to the parent's tight constraint; that left the `UiKitView` wider than the capsule(s) and rendered the leftover space as if `padding`/`itemSpacing` had leaked *outside* the glass pill. The widget now wraps itself in `UnconstrainedBox(constrainedAxis: Axis.vertical, alignment: Alignment.center)` in wrap-content mode, so the bar shrinks to the estimated content width and centers within its parent slot (matching Apple's iOS 26 floating-toolbar visual). Pass `width: double.infinity` for explicit fill-parent.
+- `width: null` now **auto-promotes to fill-parent** when [items] contains a flexible `LiquidGlassToolbarSpacer`. Without this, a flex spacer in wrap-content mode silently collapsed to `0` and left the split capsules stuck together at one edge — almost never what a caller using a flex spacer wants. With a flex spacer in items, the toolbar now fills the parent's width so the spacer can distribute the capsule groups (the iOS 26 split-toolbar pattern). Without a flex spacer, wrap-content behavior is unchanged.
+- **Behavior change:** `LiquidGlassToolbarSpacer(flexible: false, width: X)` now also splits the toolbar into separate capsules (with an `X`-point fixed gap between them), matching the behavior of flexible spacers. Previously fixed spacers stayed inside one capsule as an in-pill gap; now both spacer kinds produce the iOS 26 split-toolbar pattern. The `flexible` flag controls only whether the *gap* between capsules is variable (`Spacer()`) or a fixed width.
+- Fix: the leading capsule in a split toolbar (items separated by a flexible `LiquidGlassToolbarSpacer`) is no longer clipped/invisible. Each `ToolbarGroupCapsule` now wraps its own `.glassEffect(.regular.interactive(), in: Capsule())` in a dedicated `GlassEffectContainer(spacing: 0)`. A single shared outer container was merging sibling pills into one fused surface and clipping the leading one; omitting the container entirely left `Glass.interactive()` without the compositing context it needs to render fully (which is why other interactive-glass widgets like `LiquidGlassButton` always pair `.interactive()` with a `GlassEffectContainer`). Per-capsule containment gives each pill an independent, fully-rendered glass surface.
+
+### LiquidGlassButton
+- Fix: icon-only buttons with `size: null` and text buttons with `width: null` no longer swell to the parent's width when placed inside a tight-horizontal parent. Same `UnconstrainedBox(constrainedAxis: Axis.vertical)` treatment as the toolbar — this was observable on iPad where layout contexts more often pass tight horizontal constraints. Pass an explicit `size` / `width` (or `double.infinity`) to opt out.
 
 ## 0.2.0
 

@@ -52,9 +52,24 @@ class LiquidGlassToolbarItem {
   }
 }
 
-/// A special item that represents flexible or fixed space in the toolbar.
+/// A special item that splits the toolbar into separate glass capsules,
+/// with either a flexible or a fixed gap between them.
+///
+/// Both kinds of spacer **split** the items list: every run of items
+/// between spacers becomes its own independent Liquid Glass pill, just
+/// like Apple's iOS 26 split-toolbar pattern in Mail / Safari.
+///
+/// * `flexible: true` (default) — the gap between capsules expands to
+///   distribute leftover horizontal space. Best inside a fill-parent
+///   toolbar (the auto-promote rule on [LiquidGlassToolbar.width]
+///   handles this when `width` is null).
+/// * `flexible: false, width: X` — the gap between capsules is exactly
+///   `X` points. Useful for a tight, predictable separation between
+///   pills regardless of available width.
 class LiquidGlassToolbarSpacer extends LiquidGlassToolbarItem {
-  /// If true, takes up flexible space. If false, fixed space.
+  /// If true, the gap between the surrounding capsules expands to fill
+  /// leftover horizontal space (`Spacer()`). If false, the gap is fixed
+  /// at [width] points.
   final bool flexible;
 
   /// Width for fixed spacers. Defaults to 16 on iOS.
@@ -94,17 +109,22 @@ class LiquidGlassToolbar extends StatefulWidget {
 
   /// Optional explicit width for the toolbar.
   ///
-  /// * `null` (the default) — the toolbar **wraps its content**: width is
-  ///   estimated from the items' natural sizes (icon point size, text
-  ///   measurement via `TextPainter`, fixed spacer widths, plus the
-  ///   glass overflow padding). This matches Flutter button semantics.
-  /// * A finite value — the toolbar takes exactly that width; flexible
-  ///   `LiquidGlassToolbarSpacer`s expand into the leftover room.
-  /// * `double.infinity` — the toolbar fills its parent's width.
-  ///
-  /// Note: flexible spacers only produce a visible gap when this is
-  /// explicit. In wrap-content mode, a flexible spacer collapses to 0
-  /// because there's no extra space to distribute.
+  /// * `null` (the default):
+  ///   * If [items] contains a flexible `LiquidGlassToolbarSpacer` →
+  ///     the toolbar **fills its parent's width** so the spacer can
+  ///     actually distribute the capsule groups (the iOS 26 split-
+  ///     toolbar pattern). Without this auto-detection a flex spacer
+  ///     would silently collapse to 0 and leave the capsules stuck
+  ///     together at one edge — almost never what callers want.
+  ///   * Otherwise → the toolbar **wraps its content**: width is
+  ///     estimated from the items' natural sizes (icon point size,
+  ///     text measurement via `TextPainter`, fixed spacer widths, plus
+  ///     the per-capsule horizontal `padding`). The widget centers
+  ///     itself horizontally in the parent's allocated slot.
+  /// * A finite value — the toolbar takes exactly that width; any
+  ///   flexible spacers expand into the leftover room.
+  /// * `double.infinity` — the toolbar fills its parent's width
+  ///   (forces fill-parent even without a flex spacer).
   final double? width;
 
   /// Optional bottom shadow/separator color.
@@ -288,12 +308,14 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
   /// Estimates the toolbar's intrinsic width in wrap-content mode.
   ///
   /// Sums per-item natural widths (icon size, `TextPainter`-measured
-  /// label widths, fixed spacer widths) plus `itemSpacing` per item
-  /// (mirroring `.padding(.horizontal, itemSpacing / 2)` on each item
-  /// button), plus `padding.horizontal` per capsule *group* (since the
-  /// padding is applied inside each group's glass capsule). Flexible
-  /// spacers contribute `0` — there's no leftover room to distribute
-  /// when the toolbar hugs its content.
+  /// label widths) plus `itemSpacing` per item (mirroring
+  /// `.padding(.horizontal, itemSpacing / 2)` on each item button),
+  /// plus `padding.horizontal` per capsule *group* (since the padding
+  /// is applied inside each group's glass capsule), plus the width of
+  /// each fixed spacer between groups. Flexible spacers contribute `0`
+  /// here — there's no leftover room to distribute when the toolbar
+  /// hugs its content (and `width: null` + flex spacer auto-promotes
+  /// to fill-parent anyway, so the estimator isn't used in that case).
   double _estimateToolbarWidth(BuildContext context, EdgeInsets resolvedPadding) {
     double total = 0;
 
@@ -305,15 +327,22 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
     bool groupOpen = false;
     int groupCount = 0;
 
+    void closeGroup() {
+      if (groupOpen) {
+        groupCount++;
+        groupOpen = false;
+      }
+    }
+
     for (final item in widget.items) {
       if (item is LiquidGlassToolbarSpacer) {
+        // Both flexible and fixed spacers close the current capsule
+        // group (each runs as its own glass pill).
+        closeGroup();
         if (item.flexible) {
-          // A flexible spacer closes the current capsule group and
-          // collapses to 0 width in wrap-content mode.
-          if (groupOpen) {
-            groupCount++;
-            groupOpen = false;
-          }
+          // Flex spacers contribute 0 in wrap-content (caller can't
+          // really get split-toolbar in wrap-content; the auto-promote
+          // path takes over for that case).
           continue;
         }
         total += item.width ?? 16;
@@ -342,7 +371,7 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
       groupOpen = true;
     }
 
-    if (groupOpen) groupCount++;
+    closeGroup();
 
     // Each capsule group adds its own horizontal padding inside its
     // glass shape.
@@ -351,22 +380,45 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
     return total.ceilToDouble();
   }
 
+  /// Whether the items list contains a flexible `LiquidGlassToolbarSpacer`.
+  ///
+  /// When true and `widget.width` is null we promote the toolbar to
+  /// fill-parent mode so the flex spacer has room to distribute the
+  /// capsule groups (the iOS 26 split-toolbar pattern). Wrap-content
+  /// would silently collapse the spacer to 0 and leave the capsules
+  /// stuck together at one edge, which is rarely what a caller using a
+  /// flex spacer actually wants.
+  bool get _hasFlexibleSpacer => widget.items.any(
+        (item) => item is LiquidGlassToolbarSpacer && item.flexible,
+      );
+
   @override
   Widget build(BuildContext context) {
     if (NativeLiquidGlassUtils.supportsLiquidGlass) {
       // `widget.height` maps 1:1 to the visible glass bar height — no
-      // implicit outer margin. `widget.width` (when null) wraps content
-      // via a Flutter-side estimate; explicit values are respected,
-      // including `double.infinity` for "fill parent". `widget.padding`
-      // is applied *inside* each capsule on the iOS side (grows each
-      // glass pill), so it shows up in the width estimate but doesn't
-      // affect the outer widget's height or add any extra margin.
+      // implicit outer margin. `widget.padding` is applied *inside*
+      // each capsule on the iOS side (grows each glass pill), so it
+      // shows up in the width estimate but doesn't affect the outer
+      // widget's height or add any extra margin.
+      //
+      // Width resolution:
+      //   * `widget.width` set                      → use it verbatim
+      //   * `widget.width` null + has flex spacer   → fill parent (so the
+      //                                                 spacer can
+      //                                                 distribute)
+      //   * `widget.width` null + no flex spacer    → wrap content
+      //                                                 (estimate)
       final textDirection =
           Directionality.maybeOf(context) ?? TextDirection.ltr;
       final padding = widget.padding.resolve(textDirection);
-      final resolvedWidth =
-          widget.width ?? _estimateToolbarWidth(context, padding);
-      return SizedBox(
+      final fillParent =
+          widget.width == null ? _hasFlexibleSpacer : !widget.width!.isFinite;
+      final resolvedWidth = widget.width ??
+          (_hasFlexibleSpacer
+              ? double.infinity
+              : _estimateToolbarWidth(context, padding));
+
+      Widget result = SizedBox(
         width: resolvedWidth,
         height: widget.height,
         child: UiKitView(
@@ -376,6 +428,22 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
           onPlatformViewCreated: _onPlatformViewCreated,
         ),
       );
+      // Wrap-content mode needs to shrink below a tight-horizontal
+      // parent's constraint (e.g. inside `Column(crossAxisAlignment:
+      // .stretch)` or a `Padding` inside one). `UnconstrainedBox`
+      // releases the horizontal constraint so the widget can actually
+      // be its estimated content width; vertical stays constrained so
+      // the supplied `height` is honored. Centered alignment matches
+      // Apple's iOS 26 floating-toolbar visual (toolbars sit centered,
+      // not leading-aligned).
+      if (widget.width == null && !fillParent) {
+        result = UnconstrainedBox(
+          constrainedAxis: Axis.vertical,
+          alignment: Alignment.center,
+          child: result,
+        );
+      }
+      return result;
     }
 
     return const SizedBox();

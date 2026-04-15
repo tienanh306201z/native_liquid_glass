@@ -96,7 +96,6 @@ class _LiquidGlassButtonPreviewPageState extends State<LiquidGlassButtonPreviewP
                             }
                           : null,
                       style: _buttonStyle,
-                      width: _buttonWidth,
                       height: _buttonHeight,
                       icon: _resolveIcon(),
                       iconSize: _iconSize,

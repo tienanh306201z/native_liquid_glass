@@ -220,21 +220,24 @@ final class LiquidGlassToolbarViewModel: ObservableObject {
 fileprivate enum ToolbarGroup: Identifiable {
   case items(id: Int, [LiquidGlassToolbarViewModel.Item])
   case flexibleSpacer(id: Int)
+  case fixedSpacer(id: Int, width: CGFloat)
 
   var id: Int {
     switch self {
     case .items(let id, _): return id
     case .flexibleSpacer(let id): return id
+    case .fixedSpacer(let id, _): return id
     }
   }
 }
 
-/// Splits a flat item list on each `.flexibleSpacer` into separate groups.
+/// Splits a flat item list on each spacer into separate capsule groups.
 ///
-/// Each non-empty run of items becomes its own glass capsule; flexible
-/// spacers become `Spacer()` between capsules. Fixed spacers stay
-/// *inside* a group and render as internal gaps. This matches the iOS 26
-/// split-toolbar pattern you see in e.g. Mail / Safari.
+/// Both flexible and fixed `LiquidGlassToolbarSpacer`s split the toolbar
+/// into independent glass capsules — the `flexible` flag only controls
+/// whether the *gap* between those capsules is variable (`Spacer()`) or
+/// a fixed width. This matches the iOS 26 split-toolbar pattern you see
+/// in e.g. Mail / Safari, where each capsule is a distinct floating pill.
 @available(iOS 26.0, *)
 fileprivate func splitIntoGroups(
   _ items: [LiquidGlassToolbarViewModel.Item]
@@ -252,11 +255,16 @@ fileprivate func splitIntoGroups(
   }
 
   for item in items {
-    if case .flexibleSpacer = item.kind {
+    switch item.kind {
+    case .flexibleSpacer:
       flushBuffer()
       groups.append(.flexibleSpacer(id: nextId))
       nextId += 1
-    } else {
+    case .fixedSpacer(let width):
+      flushBuffer()
+      groups.append(.fixedSpacer(id: nextId, width: width))
+      nextId += 1
+    default:
       buffer.append(item)
     }
   }
@@ -277,31 +285,36 @@ struct LiquidGlassToolbarSwiftUIView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      GlassEffectContainer(spacing: 0) {
-        HStack(spacing: 0) {
-          ForEach(splitIntoGroups(viewModel.items)) { group in
-            switch group {
-            case .flexibleSpacer:
-              Spacer(minLength: 0)
-            case .items(_, let groupItems):
-              ToolbarGroupCapsule(
-                items: groupItems,
-                iconSymbolWeight: viewModel.iconSymbolWeight,
-                labelStyle: viewModel.labelStyle,
-                itemSpacing: viewModel.itemSpacing,
-                capsulePadding: viewModel.capsulePadding,
-                capsuleHeight: geometry.size.height,
-                onItemTapped: { id in viewModel.onItemTapped?(id) }
-              )
-            }
+      // Deliberately no `GlassEffectContainer` wrapper: each
+      // `ToolbarGroupCapsule` renders its own `.glassEffect(...)`
+      // independently, and the toolbar doesn't participate in
+      // `glassEffectUnion(id:)` / `glassEffectID(_:)`. Wrapping all
+      // capsules in a single `GlassEffectContainer(spacing: 0)` made
+      // Apple's Liquid Glass merge pipeline collapse multiple sibling
+      // capsule shapes into one fused material, which visually clipped
+      // the leading capsule's pill out of the composite when groups
+      // were separated by a `Spacer`.
+      HStack(spacing: 0) {
+        ForEach(splitIntoGroups(viewModel.items)) { group in
+          switch group {
+          case .flexibleSpacer:
+            Spacer(minLength: 0)
+          case .fixedSpacer(_, let width):
+            Spacer().frame(width: width)
+          case .items(_, let groupItems):
+            ToolbarGroupCapsule(
+              items: groupItems,
+              iconSymbolWeight: viewModel.iconSymbolWeight,
+              labelStyle: viewModel.labelStyle,
+              itemSpacing: viewModel.itemSpacing,
+              capsulePadding: viewModel.capsulePadding,
+              capsuleHeight: geometry.size.height,
+              onItemTapped: { id in viewModel.onItemTapped?(id) }
+            )
           }
         }
-        // No outer padding — `widget.height` from Flutter maps 1:1 to
-        // the visible glass bar height. Apple's `Glass.interactive()`
-        // press response is subtle enough that any minor scale-up
-        // staying inside these bounds is acceptable.
-        .frame(width: geometry.size.width, height: geometry.size.height)
       }
+      .frame(width: geometry.size.width, height: geometry.size.height)
     }
   }
 }
@@ -331,14 +344,23 @@ fileprivate struct ToolbarGroupCapsule: View {
   let onItemTapped: (String) -> Void
 
   var body: some View {
-    HStack(spacing: 0) {
-      ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-        itemView(for: item)
+    // Each capsule owns its own `GlassEffectContainer` so
+    // `Glass.regular.interactive()` gets the compositing context it
+    // needs to render fully. Wrapping all capsules in a *single*
+    // shared container merged sibling pills into one fused surface and
+    // clipped the leading one; wrapping zero made the interactive
+    // material under-render. Per-capsule containment gives each pill
+    // a full, independent glass surface with no cross-capsule merge.
+    GlassEffectContainer(spacing: 0) {
+      HStack(spacing: 0) {
+        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+          itemView(for: item)
+        }
       }
+      .padding(capsulePadding)
+      .frame(height: capsuleHeight)
+      .glassEffect(.regular.interactive(), in: Capsule())
     }
-    .padding(capsulePadding)
-    .frame(height: capsuleHeight)
-    .glassEffect(.regular.interactive(), in: Capsule())
   }
 
   // MARK: Item rendering
@@ -355,11 +377,12 @@ fileprivate struct ToolbarGroupCapsule: View {
     default:
       Button(action: { onItemTapped(item.id) }) {
         itemContent(for: item)
-          // Keep `minWidth: 44` for a comfortable horizontal tap target.
-          // Vertical sizing follows the toolbar height (via the capsule's
-          // `maxHeight: .infinity`) so `widget.height` actually shrinks
-          // the bar — no implicit 44pt floor.
-          .frame(minWidth: 44, maxHeight: .infinity)
+          // Items size to their content. The only horizontal contribution
+          // is `.padding(.horizontal, itemSpacing / 2)` so `itemSpacing`
+          // is the *only* knob controlling gaps between items — no hidden
+          // 44pt minimum-width floor fighting `itemSpacing: 0`.
+          // Vertical follows the capsule height set on the parent.
+          .frame(maxHeight: .infinity)
           .padding(.horizontal, itemSpacing / 2)
           .contentShape(Rectangle())
       }

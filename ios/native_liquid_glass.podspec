@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'native_liquid_glass'
-  s.version          = '0.2.3'
+  s.version          = '0.2.5'
   s.summary          = 'Liquid Glass iOS platform view for Flutter.'
   s.description      = <<-DESC
 UIKit-native iOS platform views for rendering Liquid Glass style components in Flutter.

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.5
+
+### LiquidGlassContainer
+- Add `LiquidGlassConfig.backgroundColor` — a solid color drawn **inside the same shape** but **behind** the glass material. Two complementary effects:
+  - **Density**: the alpha channel controls how dense the glass reads. `Color(...).withValues(alpha: 0.4)` gives a denser pill than the bare-glass default; `alpha: 1.0` produces an effectively solid colored surface with the glass material's highlight + shadow on top. Apple's iOS 26 `Glass` API doesn't expose a density/intensity knob, so this controlled backdrop is the supported way to thicken the visible material.
+  - **Stable color**: fixes the "colors below the glass appear inverted as I scroll" issue on iOS 26. The Liquid Glass material runs an adaptive-contrast pass that samples the brightness of whatever's behind it and inverts the material's tone for legibility — over varying Flutter content this can read as flickering. With `backgroundColor` set, the glass refracts your fixed backdrop instead and stays stable.
+- iOS implementation: rendered as `shape.fill(color)` inside a `.background { ... }` modifier applied **after** `.glassEffect(...)`, so the z-order is `backdrop → glass material → border overlay → Flutter child`. The backdrop uses the same `BuiltInGlassShape` / `AnimatableCustomPathShape` reference as the glass fill, so it animates with shape changes (corner radius, custom-path morph) under `animateChanges: true`.
+
+## 0.2.4
+
+### Custom border
+- Add new `LiquidGlassBorder` class (shared) — a stroked outline that follows the widget's underlying shape (capsule, rounded rect, circle, or custom path). Exposes `color` and `width`. Exported from `package:native_liquid_glass/native_liquid_glass.dart`.
+- `LiquidGlassContainer`: new `LiquidGlassConfig.border` field. Border traces every supported shape including animatable custom paths (the stroke animates with the shape via the same `animatableData` used by the glass fill).
+- `LiquidGlassButton`: new `border` widget property on both constructors (text + icon-only). Stroke follows `borderRadius` (capsule when null, rounded rect otherwise).
+- `LiquidGlassToolbar`: new `border` widget property. Applied **per capsule** so every pill in a split toolbar gets the same outline.
+- iOS side: border renders as `shape.stroke(color, lineWidth:)` inside an `.overlay { ... }` after `.glassEffect(...)`, so the stroke sits on top of the glass material and matches the fill geometry exactly.
+
+### LiquidGlassContainer
+- Fix: re-added the `GlassEffectContainer(spacing: 0)` wrapper around the container's SwiftUI body. This was claimed in the 0.2.0 CHANGELOG but the actual wrapping was missing from the shipped code, with three visible consequences: (a) `Glass.clear` rendered as a frosted white panel in light mode instead of the proper translucent material, (b) `glassEffectUnion(id:)` / `glassEffectID(_:)` — applied via `applyLiquidGlassContainerModifiers` — silently did nothing because they require a `GlassEffectContainer` ancestor, and (c) interactive glass under-rendered. All three now work as documented.
+- Defensive: `hostingController.view.clipsToBounds = false` (and `layer.masksToBounds = false`) so the glass material's subtle drop-shadow doesn't clip at the host-view boundary (matches the toolbar's existing treatment).
+- Doc: clarified that `glass.interactive()` on the native side is effectively dead because the `UiKitView` is wrapped in `IgnorePointer` to let Flutter child widgets inside the container still receive taps. Touches never reach the native glass view, so the visual press feedback is produced Flutter-side via `SpringBuilder` + `Transform.scale`. The `.interactive()` call is kept anyway because it subtly adjusts the baseline material, keeping the rendered look consistent with `LiquidGlassButton` / `LiquidGlassToolbar`.
+
 ## 0.2.3
 
 ### LiquidGlassButton

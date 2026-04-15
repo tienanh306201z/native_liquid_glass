@@ -87,6 +87,7 @@ struct LiquidGlassButtonRootView: View {
             .frame(width: config.width, height: resolvedFrameHeight())
             .contentShape(resolvedShape())
             .glassEffect(resolvedGlass(), in: resolvedShape())
+            .overlay { borderOverlay() }
             .applyLiquidGlassEffectModifiers(
               unionId: config.glassEffectUnionId,
               id: config.glassEffectId,
@@ -99,6 +100,17 @@ struct LiquidGlassButtonRootView: View {
       }
     } else {
       standardButtonView
+    }
+  }
+
+  /// Strokes the button's shape with the configured border color/width
+  /// on top of the glass material. No-op when unset or zero-width.
+  @ViewBuilder
+  private func borderOverlay() -> some View {
+    if config.borderWidth > 0, let color = config.borderColor {
+      resolvedShape()
+        .stroke(Color(uiColor: color), lineWidth: config.borderWidth)
+        .allowsHitTesting(false)
     }
   }
 

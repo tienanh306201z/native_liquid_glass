@@ -46,7 +46,7 @@ This plugin supports both **CocoaPods** and **Swift Package Manager (SPM)**.
 
 ```yaml
 dependencies:
-    native_liquid_glass: ^0.2.3
+    native_liquid_glass: ^0.2.5
 ```
 
 Then run `flutter pub get`.

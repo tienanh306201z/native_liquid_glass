@@ -65,6 +65,8 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
   String? _lastGlassEffectId;
   List<LiquidGlassPathOp>? _lastCustomPath;
   Size? _lastCustomPathSize;
+  int? _lastBorderSignature;
+  int? _lastBackgroundColor;
 
   bool _isPressed = false;
 
@@ -94,6 +96,8 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
     final effectId = widget.config.glassEffectId;
     final customPath = widget.config.customPath;
     final customPathSize = widget.config.customPathSize;
+    final borderSignature = widget.config.border?.signature;
+    final backgroundColor = widget.config.backgroundColor?.toARGB32();
 
     if (_lastEffect != effect ||
         _lastShape != shape ||
@@ -103,7 +107,9 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
         _lastGlassEffectUnionId != unionId ||
         _lastGlassEffectId != effectId ||
         !identical(_lastCustomPath, customPath) ||
-        _lastCustomPathSize != customPathSize) {
+        _lastCustomPathSize != customPathSize ||
+        _lastBorderSignature != borderSignature ||
+        _lastBackgroundColor != backgroundColor) {
       await ch.invokeMethod('updateConfig', {
         ...widget.config.toCreationParams(),
         'animated': widget.animateChanges,
@@ -117,6 +123,8 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
       _lastGlassEffectId = effectId;
       _lastCustomPath = customPath;
       _lastCustomPathSize = customPathSize;
+      _lastBorderSignature = borderSignature;
+      _lastBackgroundColor = backgroundColor;
     }
   }
 
@@ -133,6 +141,8 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
     _lastGlassEffectId = widget.config.glassEffectId;
     _lastCustomPath = widget.config.customPath;
     _lastCustomPathSize = widget.config.customPathSize;
+    _lastBorderSignature = widget.config.border?.signature;
+    _lastBackgroundColor = widget.config.backgroundColor?.toARGB32();
   }
 
   @override

@@ -44,6 +44,10 @@ final class LiquidGlassToolbarViewModel: ObservableObject {
   /// Padding applied inside each glass capsule — grows the pill around
   /// its items instead of inserting an outer margin around the widget.
   @Published var capsulePadding: EdgeInsets = EdgeInsets()
+  /// Optional stroked border color for each capsule. Width is
+  /// `capsuleBorderWidth`; a zero width disables the stroke.
+  @Published var capsuleBorderColor: UIColor? = nil
+  @Published var capsuleBorderWidth: CGFloat = 0
 
   var onItemTapped: ((String) -> Void)?
 
@@ -77,6 +81,10 @@ final class LiquidGlassToolbarViewModel: ObservableObject {
       bottom: readPad("paddingBottom"),
       trailing: readPad("paddingRight")
     )
+
+    capsuleBorderColor = colorDecoder(args?["borderColor"])
+    capsuleBorderWidth =
+      (args?["borderWidth"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
   }
 
   // MARK: Builders
@@ -309,6 +317,8 @@ struct LiquidGlassToolbarSwiftUIView: View {
               itemSpacing: viewModel.itemSpacing,
               capsulePadding: viewModel.capsulePadding,
               capsuleHeight: geometry.size.height,
+              borderColor: viewModel.capsuleBorderColor,
+              borderWidth: viewModel.capsuleBorderWidth,
               onItemTapped: { id in viewModel.onItemTapped?(id) }
             )
           }
@@ -341,6 +351,10 @@ fileprivate struct ToolbarGroupCapsule: View {
   /// on `.frame(maxHeight: .infinity)` (which doesn't force the full
   /// height through every SwiftUI layout path).
   let capsuleHeight: CGFloat
+  /// Optional stroked border color/width, applied on top of the glass
+  /// material and following the capsule shape.
+  let borderColor: UIColor?
+  let borderWidth: CGFloat
   let onItemTapped: (String) -> Void
 
   var body: some View {
@@ -360,6 +374,18 @@ fileprivate struct ToolbarGroupCapsule: View {
       .padding(capsulePadding)
       .frame(height: capsuleHeight)
       .glassEffect(.regular.interactive(), in: Capsule())
+      .overlay { borderOverlay }
+    }
+  }
+
+  /// Strokes the capsule shape with the configured border color/width
+  /// on top of the glass material. No-op when unset or zero-width.
+  @ViewBuilder
+  private var borderOverlay: some View {
+    if borderWidth > 0, let color = borderColor {
+      Capsule()
+        .stroke(Color(uiColor: color), lineWidth: borderWidth)
+        .allowsHitTesting(false)
     }
   }
 

@@ -33,6 +33,8 @@ struct LiquidGlassButtonConfig {
   let interaction: Bool
   let labelColor: UIColor?
   let maxLines: Int?
+  let borderColor: UIColor?
+  let borderWidth: CGFloat
 
   /// Optional label typography customization.
   struct LabelStyle {
@@ -218,6 +220,9 @@ struct LiquidGlassButtonConfig {
     } else {
       maxLines = nil
     }
+
+    borderColor = Self.decodeColor(from: args?["borderColor"])
+    borderWidth = (args?["borderWidth"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
   }
 
   private static func looksLikeSvg(_ data: Data) -> Bool {

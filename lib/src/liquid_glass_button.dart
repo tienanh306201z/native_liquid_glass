@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'shares/liquid_glass_border.dart';
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/text_style_utils.dart';
@@ -224,6 +225,11 @@ class LiquidGlassButton extends StatefulWidget {
   /// Defaults to 1. Set to null for unlimited lines.
   final int? maxLines;
 
+  /// Optional stroked border drawn on top of the button's glass
+  /// material, following the button's shape (capsule or rounded rect
+  /// per [borderRadius]).
+  final LiquidGlassBorder? border;
+
   /// Whether this button is in icon-only mode.
   final bool _iconOnly;
 
@@ -257,6 +263,7 @@ class LiquidGlassButton extends StatefulWidget {
     this.labelColor,
     this.shrinkWrap = false,
     this.maxLines = 1,
+    this.border,
   }) : _iconOnly = false,
        size = null,
        tooltip = null,
@@ -291,6 +298,7 @@ class LiquidGlassButton extends StatefulWidget {
     this.badgeColor,
     this.badgeTextColor,
     this.badgeSize,
+    this.border,
   }) : _iconOnly = true,
        label = null,
        foregroundColor = null,
@@ -409,6 +417,7 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
       widget.interaction,
       widget.labelColor?.toARGB32(),
       widget.maxLines,
+      widget.border?.signature,
     ]);
   }
 
@@ -591,6 +600,7 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
       if (widget.badgeSize != null) 'badgeSize': widget.badgeSize,
       if (!isIconOnly) 'labelStyle': textStylePayload(widget.labelTextStyle),
       if (!isIconOnly && widget.maxLines != null) 'maxLines': widget.maxLines,
+      if (widget.border != null) ...widget.border!.toMap(),
     };
   }
 

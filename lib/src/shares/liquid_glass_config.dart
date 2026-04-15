@@ -1,5 +1,7 @@
 import 'package:flutter/painting.dart';
 
+import 'liquid_glass_border.dart';
+
 /// Glass effect type used by [LiquidGlassContainer] and related components.
 enum LiquidGlassEffect {
   /// Standard glass effect.
@@ -137,6 +139,34 @@ class LiquidGlassConfig {
   /// bounds, so you can use your SVG / design coordinates directly.
   final Size? customPathSize;
 
+  /// Optional stroked border drawn on top of the glass material,
+  /// following the same shape as the fill (capsule, rounded rect,
+  /// circle, or custom path).
+  final LiquidGlassBorder? border;
+
+  /// Optional solid color drawn **behind** the glass material, in the
+  /// same shape. This backdrop is what the Liquid Glass material
+  /// refracts and what iOS 26's adaptive-contrast pipeline samples,
+  /// so it serves two purposes:
+  ///
+  /// * **Density** — the alpha channel controls how "dense" the glass
+  ///   reads. `Color(0xFF...).withValues(alpha: 0.4)` gives a denser
+  ///   pill than the bare-glass default; `alpha: 1.0` produces an
+  ///   effectively solid-colored surface with the glass material's
+  ///   highlight/shadow on top.
+  /// * **Stable color** — fixes the "colors below the glass appear
+  ///   inverted" issue you can hit on iOS 26 when scrolling over
+  ///   content with varying brightness. With no `backgroundColor`,
+  ///   the system samples the Flutter content underneath and
+  ///   adaptively inverts the glass tone for legibility, which can
+  ///   read as flickering. With a `backgroundColor` set, the glass
+  ///   refracts your controlled backdrop instead and stays stable.
+  ///
+  /// Useful tint for adaptive-contrast stabilization without changing
+  /// the apparent color much:
+  /// `Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.4)`.
+  final Color? backgroundColor;
+
   const LiquidGlassConfig({
     this.effect = LiquidGlassEffect.regular,
     this.shape = LiquidGlassEffectShape.rect,
@@ -147,6 +177,8 @@ class LiquidGlassConfig {
     this.glassEffectId,
     this.customPath,
     this.customPathSize,
+    this.border,
+    this.backgroundColor,
   }) : assert(
           shape != LiquidGlassEffectShape.custom ||
               (customPath != null && customPathSize != null),
@@ -168,6 +200,9 @@ class LiquidGlassConfig {
         'customPathWidth': customPathSize!.width,
         'customPathHeight': customPathSize!.height,
       },
+      if (border != null) ...border!.toMap(),
+      if (backgroundColor != null)
+        'backgroundColor': backgroundColor!.toARGB32(),
     };
   }
 }

@@ -15,6 +15,15 @@ final class LiquidGlassContainerViewModel: ObservableObject {
   @Published var customPathOps: [[Any]]? = nil
   @Published var customPathWidth: CGFloat? = nil
   @Published var customPathHeight: CGFloat? = nil
+  /// Optional stroked border that follows the glass shape.
+  @Published var borderColor: UIColor? = nil
+  @Published var borderWidth: CGFloat = 0
+  /// Optional solid fill drawn *behind* the glass material in the same
+  /// shape. The glass refracts this controlled backdrop, which both
+  /// thickens the visible glass density (alpha controls how dense) and
+  /// stabilizes the material against iOS 26's adaptive-contrast color
+  /// inversion when scrolling over varying-brightness content.
+  @Published var backgroundColor: UIColor? = nil
 
   /// Normalised + padded path data for animatable custom shapes.
   @Published var normalizedPathData: [CGFloat] = []
@@ -44,6 +53,9 @@ final class LiquidGlassContainerViewModel: ObservableObject {
       self.customPathOps = args?["customPath"] as? [[Any]]
       self.customPathWidth = (args?["customPathWidth"] as? NSNumber).map { CGFloat($0.doubleValue) }
       self.customPathHeight = (args?["customPathHeight"] as? NSNumber).map { CGFloat($0.doubleValue) }
+      self.borderColor = Self.decodeColor(from: args?["borderColor"])
+      self.borderWidth = (args?["borderWidth"] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0
+      self.backgroundColor = Self.decodeColor(from: args?["backgroundColor"])
 
       // Normalise custom path ops into a fixed-length float array for animation.
       if let ops = self.customPathOps,
@@ -283,20 +295,30 @@ struct LiquidGlassContainerSwiftUIView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      Group {
-        if viewModel.isCustom {
-          customGlassView(in: geometry.size)
-            .transition(.opacity)
-        } else {
-          builtInGlassView(in: geometry.size)
-            .transition(.opacity)
+      // Wrap in `GlassEffectContainer` so:
+      //   * `Glass.clear` renders with its proper translucent material
+      //     (without it, Apple's pipeline collapses to a frosted white
+      //     panel in light mode),
+      //   * `glassEffectUnion(id:)` and `glassEffectID(_:)` applied via
+      //     `applyLiquidGlassContainerModifiers` have the ancestor they
+      //     require to actually take effect,
+      //   * interactive glass gets the compositing context it needs.
+      GlassEffectContainer(spacing: 0) {
+        Group {
+          if viewModel.isCustom {
+            customGlassView(in: geometry.size)
+              .transition(.opacity)
+          } else {
+            builtInGlassView(in: geometry.size)
+              .transition(.opacity)
+          }
         }
+        .applyLiquidGlassContainerModifiers(
+          unionId: viewModel.glassEffectUnionId,
+          id: viewModel.glassEffectId,
+          namespace: namespace
+        )
       }
-      .applyLiquidGlassContainerModifiers(
-        unionId: viewModel.glassEffectUnionId,
-        id: viewModel.glassEffectId,
-        namespace: namespace
-      )
       .frame(width: geometry.size.width, height: geometry.size.height)
     }
   }
@@ -318,6 +340,8 @@ struct LiquidGlassContainerSwiftUIView: View {
       .fill(Color.clear)
       .allowsHitTesting(false)
       .glassEffect(resolvedGlassEffect(), in: shape)
+      .background { backgroundFill(for: shape) }
+      .overlay { borderOverlay(for: shape) }
   }
 
   // MARK: Custom (animatable path morphing)
@@ -331,6 +355,39 @@ struct LiquidGlassContainerSwiftUIView: View {
       .fill(Color.clear)
       .allowsHitTesting(false)
       .glassEffect(resolvedGlassEffect(), in: shape)
+      .background { backgroundFill(for: shape) }
+      .overlay { borderOverlay(for: shape) }
+  }
+
+  // MARK: Backdrop fill
+
+  /// Fills the supplied shape with the configured `backgroundColor`,
+  /// drawn *behind* the glass effect via `.background { ... }`. This
+  /// gives the glass a controlled backdrop to refract — densifying it
+  /// (alpha controls how much) and stabilizing it against iOS 26's
+  /// adaptive-contrast color inversion. Returns an empty view when no
+  /// background color is set.
+  @ViewBuilder
+  private func backgroundFill<S: Shape>(for shape: S) -> some View {
+    if let color = viewModel.backgroundColor {
+      shape
+        .fill(Color(uiColor: color))
+        .allowsHitTesting(false)
+    }
+  }
+
+  // MARK: Border overlay
+
+  /// Strokes the supplied shape with the configured border color/width.
+  /// Drawn after `.glassEffect(...)` so it sits on top of the glass
+  /// material. Returns an empty view when no visible border is set.
+  @ViewBuilder
+  private func borderOverlay<S: Shape>(for shape: S) -> some View {
+    if viewModel.borderWidth > 0, let color = viewModel.borderColor {
+      shape
+        .stroke(Color(uiColor: color), lineWidth: viewModel.borderWidth)
+        .allowsHitTesting(false)
+    }
   }
 
   // MARK: Glass effect
@@ -340,6 +397,18 @@ struct LiquidGlassContainerSwiftUIView: View {
     if let tintColor = viewModel.tint {
       glass = glass.tint(Color(tintColor))
     }
+    // Note: `glass.interactive()` would normally render Apple's
+    // press-response highlight on touch, but the Flutter side wraps
+    // this native view in `IgnorePointer` (so child widgets drawn on
+    // top inside the `Stack` can still receive taps via Flutter's
+    // gesture arena). That means touches never reach this glass view
+    // and the interactive highlight never fires — the press feedback
+    // is instead produced by a Flutter-side `SpringBuilder` + scale
+    // transform when `config.interactive` is true. We still apply
+    // `.interactive()` here because it subtly changes the baseline
+    // material (Apple's "interactive" glass has slightly different
+    // highlight/shading even at rest), keeping the rendered look
+    // consistent with `LiquidGlassButton` / `LiquidGlassToolbar`.
     if viewModel.interactive {
       glass = glass.interactive()
     }

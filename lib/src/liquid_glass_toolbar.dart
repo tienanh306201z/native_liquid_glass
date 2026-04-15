@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'shares/liquid_glass_border.dart';
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/text_style_utils.dart';
@@ -155,6 +156,11 @@ class LiquidGlassToolbar extends StatefulWidget {
   /// Must be `>= 0`.
   final double itemSpacing;
 
+  /// Optional stroked border drawn on top of each glass capsule,
+  /// following the capsule shape. Applies to every pill in a split
+  /// toolbar identically.
+  final LiquidGlassBorder? border;
+
   /// Padding applied **inside each glass capsule**, between the items and
   /// the capsule edge. Defaults to no padding.
   ///
@@ -185,6 +191,7 @@ class LiquidGlassToolbar extends StatefulWidget {
     this.labelTextStyle,
     this.itemSpacing = 8,
     this.padding = EdgeInsets.zero,
+    this.border,
   }) : assert(itemSpacing >= 0, 'itemSpacing must be >= 0.');
 
   @override
@@ -248,6 +255,7 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
       textStyleSignature(widget.labelTextStyle),
       widget.itemSpacing,
       widget.padding,
+      widget.border?.signature,
     ]);
   }
 
@@ -302,6 +310,7 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
       'paddingBottom': padding.bottom,
       'paddingLeft': padding.left,
       'paddingRight': padding.right,
+      if (widget.border != null) ...widget.border!.toMap(),
     };
   }
 

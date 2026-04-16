@@ -15,6 +15,7 @@ final class LiquidGlassSearchBarPlatformView: NSObject, FlutterPlatformView {
 
   // Pre-iOS 26 UIKit path
   private var searchBar: UISearchBar?
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -31,6 +32,7 @@ final class LiquidGlassSearchBarPlatformView: NSObject, FlutterPlatformView {
     )
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     if #available(iOS 26.0, *) {
       configureSwiftUI(args: args)
@@ -316,6 +318,10 @@ final class LiquidGlassSearchBarPlatformView: NSObject, FlutterPlatformView {
             }
           }
         }
+        result(nil)
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
         result(nil)
       default:
         result(FlutterMethodNotImplemented)

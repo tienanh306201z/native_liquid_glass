@@ -17,6 +17,7 @@ final class LiquidGlassButtonGroupPlatformView: NSObject, FlutterPlatformView {
   // Pre-iOS 26 UIKit fallback
   private var uikitButtons: [UIButton] = []
   private var stackView: UIStackView?
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -34,6 +35,7 @@ final class LiquidGlassButtonGroupPlatformView: NSObject, FlutterPlatformView {
     )
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     let isDark = (args?["isDark"] as? Bool) ?? false
 
@@ -77,6 +79,10 @@ final class LiquidGlassButtonGroupPlatformView: NSObject, FlutterPlatformView {
           self.uikitButtons.removeAll()
           self.configureLegacyUIKit(args: updateArgs)
         }
+        result(nil)
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
         result(nil)
       default:
         result(FlutterMethodNotImplemented)

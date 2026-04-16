@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// Style of the native iOS activity indicator.
@@ -48,8 +49,9 @@ class LiquidGlassActivityIndicator extends StatefulWidget {
 }
 
 class _LiquidGlassActivityIndicatorState
-    extends State<LiquidGlassActivityIndicator> {
+    extends State<LiquidGlassActivityIndicator> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   bool? _lastAnimating;
   int? _lastColor;
 
@@ -80,6 +82,7 @@ class _LiquidGlassActivityIndicatorState
     _nativeChannel = channel;
     _lastAnimating = widget.animating;
     _lastColor = widget.color?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

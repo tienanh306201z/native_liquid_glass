@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// Controller for [LiquidGlassStepper].
@@ -83,8 +84,9 @@ class LiquidGlassStepper extends StatefulWidget {
   State<LiquidGlassStepper> createState() => _LiquidGlassStepperState();
 }
 
-class _LiquidGlassStepperState extends State<LiquidGlassStepper> {
+class _LiquidGlassStepperState extends State<LiquidGlassStepper> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   double? _lastValue;
   double? _lastMin;
   double? _lastMax;
@@ -165,6 +167,7 @@ class _LiquidGlassStepperState extends State<LiquidGlassStepper> {
     _lastWraps = widget.wraps;
     _lastEnabled = widget.enabled;
     _lastColor = widget.color?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

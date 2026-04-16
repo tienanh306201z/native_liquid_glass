@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// A native iOS segmented control (UISegmentedControl) with Liquid Glass
@@ -44,8 +45,9 @@ class LiquidGlassSegmentedControl extends StatefulWidget {
   State<LiquidGlassSegmentedControl> createState() => _LiquidGlassSegmentedControlState();
 }
 
-class _LiquidGlassSegmentedControlState extends State<LiquidGlassSegmentedControl> {
+class _LiquidGlassSegmentedControlState extends State<LiquidGlassSegmentedControl> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
 
   // Incremental prop tracking
   int? _lastSelectedIndex;
@@ -109,6 +111,7 @@ class _LiquidGlassSegmentedControlState extends State<LiquidGlassSegmentedContro
     _lastSelectedIndex = widget.selectedIndex;
     _lastEnabled = widget.enabled;
     _lastColor = widget.color?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   // ─── Params builders ──────────────────────────────────────────────────────────

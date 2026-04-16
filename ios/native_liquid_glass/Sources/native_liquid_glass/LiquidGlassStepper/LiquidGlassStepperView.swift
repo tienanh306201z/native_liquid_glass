@@ -6,6 +6,7 @@ final class LiquidGlassStepperPlatformView: NSObject, FlutterPlatformView {
   private let containerView: UIView
   private let methodChannel: FlutterMethodChannel
   private let stepper: UIStepper
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -25,6 +26,7 @@ final class LiquidGlassStepperPlatformView: NSObject, FlutterPlatformView {
     stepper.translatesAutoresizingMaskIntoConstraints = false
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     configure(with: args)
     stepper.addTarget(self, action: #selector(handleValueChanged), for: .valueChanged)
@@ -126,6 +128,10 @@ final class LiquidGlassStepperPlatformView: NSObject, FlutterPlatformView {
         }
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

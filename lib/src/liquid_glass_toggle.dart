@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// Controller for [LiquidGlassToggle].
@@ -50,8 +51,9 @@ class LiquidGlassToggle extends StatefulWidget {
   State<LiquidGlassToggle> createState() => _LiquidGlassToggleState();
 }
 
-class _LiquidGlassToggleState extends State<LiquidGlassToggle> {
+class _LiquidGlassToggleState extends State<LiquidGlassToggle> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   bool? _lastValue;
   bool? _lastEnabled;
   int? _lastColor;
@@ -110,6 +112,7 @@ class _LiquidGlassToggleState extends State<LiquidGlassToggle> {
     _lastValue = widget.value;
     _lastEnabled = widget.enabled;
     _lastColor = widget.color?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

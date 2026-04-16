@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// A native iOS progress view (UIProgressView) with Liquid Glass effects on iOS 26+.
@@ -32,8 +33,9 @@ class LiquidGlassProgressView extends StatefulWidget {
   State<LiquidGlassProgressView> createState() => _LiquidGlassProgressViewState();
 }
 
-class _LiquidGlassProgressViewState extends State<LiquidGlassProgressView> {
+class _LiquidGlassProgressViewState extends State<LiquidGlassProgressView> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   double? _lastProgress;
   int? _lastProgressTint;
   int? _lastTrackTint;
@@ -68,6 +70,7 @@ class _LiquidGlassProgressViewState extends State<LiquidGlassProgressView> {
     _lastProgress = widget.progress;
     _lastProgressTint = widget.progressTintColor?.toARGB32();
     _lastTrackTint = widget.trackTintColor?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

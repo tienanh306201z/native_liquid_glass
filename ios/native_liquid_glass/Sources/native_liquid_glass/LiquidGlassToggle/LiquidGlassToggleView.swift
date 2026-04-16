@@ -13,6 +13,7 @@ final class LiquidGlassTogglePlatformView: NSObject, FlutterPlatformView {
 
   // Pre-iOS 26 UIKit path
   private var toggle: UISwitch?
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -29,6 +30,7 @@ final class LiquidGlassTogglePlatformView: NSObject, FlutterPlatformView {
     )
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     if #available(iOS 26.0, *) {
       configureSwiftUI(args: args)
@@ -164,6 +166,10 @@ final class LiquidGlassTogglePlatformView: NSObject, FlutterPlatformView {
         }
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

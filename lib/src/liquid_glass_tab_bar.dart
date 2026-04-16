@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_icon.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// Extra height added above the native platform view frame so the iOS liquid
@@ -193,8 +194,9 @@ class LiquidGlassTabBar extends StatefulWidget {
   State<LiquidGlassTabBar> createState() => _LiquidGlassTabBarState();
 }
 
-class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> {
+class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   List<Map<String, Object?>>? _nativeTabs;
   Map<String, Object?>? _nativeActionButton;
   int? _lastNativeSelectedIndex;
@@ -274,6 +276,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> {
     _nativeChannel = channel;
 
     _syncNativeSelectedIndex(widget.currentIndex);
+    syncGlassRouteVisibility();
   }
 
   void _syncNativeSelectedIndex(int index) {

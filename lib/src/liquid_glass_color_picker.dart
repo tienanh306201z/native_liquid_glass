@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// A native iOS color picker (UIColorWell) with Liquid Glass effects on iOS 26+.
@@ -29,8 +30,9 @@ class LiquidGlassColorPicker extends StatefulWidget {
   State<LiquidGlassColorPicker> createState() => _LiquidGlassColorPickerState();
 }
 
-class _LiquidGlassColorPickerState extends State<LiquidGlassColorPicker> {
+class _LiquidGlassColorPickerState extends State<LiquidGlassColorPicker> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   int? _lastColor;
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
@@ -46,6 +48,7 @@ class _LiquidGlassColorPickerState extends State<LiquidGlassColorPicker> {
     channel.setMethodCallHandler(_handleNativeMethodCall);
     _nativeChannel = channel;
     _lastColor = widget.selectedColor.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

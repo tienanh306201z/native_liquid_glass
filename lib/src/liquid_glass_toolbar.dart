@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'shares/liquid_glass_border.dart';
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
 
 /// A toolbar item.
@@ -198,8 +199,9 @@ class LiquidGlassToolbar extends StatefulWidget {
   State<LiquidGlassToolbar> createState() => _LiquidGlassToolbarState();
 }
 
-class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
+class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   int? _lastConfigHash;
   List<NativeLiquidGlassIconPayload>? _itemPayloads;
   int _nativePayloadRequestId = 0;
@@ -289,6 +291,7 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> {
     // Always sync current state — creation params may have been built before
     // icon payloads resolved, leaving native with missing icons.
     _syncPropsToNativeIfNeeded();
+    syncGlassRouteVisibility();
   }
 
   @override

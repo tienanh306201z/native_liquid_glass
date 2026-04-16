@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_icon.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/text_style_utils.dart';
 
@@ -105,8 +106,9 @@ class LiquidGlassMenu extends StatefulWidget {
   State<LiquidGlassMenu> createState() => _LiquidGlassMenuState();
 }
 
-class _LiquidGlassMenuState extends State<LiquidGlassMenu> {
+class _LiquidGlassMenuState extends State<LiquidGlassMenu> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   int? _lastItemsHash;
   int? _lastColor;
   double? _nativeWidth;
@@ -145,6 +147,7 @@ class _LiquidGlassMenuState extends State<LiquidGlassMenu> {
     _lastItemsHash = Object.hashAll(widget.items.map((i) => i.id));
     _lastColor = widget.color?.toARGB32();
     _requestIntrinsicSize();
+    syncGlassRouteVisibility();
   }
 
   Future<void> _requestIntrinsicSize() async {

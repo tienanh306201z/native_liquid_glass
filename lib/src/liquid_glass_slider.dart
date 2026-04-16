@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// Controller for [LiquidGlassSlider].
@@ -89,8 +90,9 @@ class LiquidGlassSlider extends StatefulWidget {
   State<LiquidGlassSlider> createState() => _LiquidGlassSliderState();
 }
 
-class _LiquidGlassSliderState extends State<LiquidGlassSlider> {
+class _LiquidGlassSliderState extends State<LiquidGlassSlider> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   double? _lastValue;
   double? _lastMin;
   double? _lastMax;
@@ -176,6 +178,7 @@ class _LiquidGlassSliderState extends State<LiquidGlassSlider> {
     _lastThumbColor = widget.thumbColor?.toARGB32();
     _lastTrackColor = widget.trackColor?.toARGB32();
     _lastTrackBgColor = widget.trackBackgroundColor?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

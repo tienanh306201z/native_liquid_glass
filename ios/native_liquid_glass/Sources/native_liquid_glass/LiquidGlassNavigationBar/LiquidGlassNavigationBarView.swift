@@ -6,6 +6,7 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
   private let containerView: UIView
   private let navigationBar: UINavigationBar
   private let methodChannel: FlutterMethodChannel
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -25,6 +26,7 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
     )
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     configureBar(args: args)
     setupMethodChannelHandler()
@@ -181,6 +183,10 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
         }
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

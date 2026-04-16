@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// Mode of the date picker.
@@ -102,8 +103,9 @@ class LiquidGlassDatePicker extends StatefulWidget {
   State<LiquidGlassDatePicker> createState() => _LiquidGlassDatePickerState();
 }
 
-class _LiquidGlassDatePickerState extends State<LiquidGlassDatePicker> {
+class _LiquidGlassDatePickerState extends State<LiquidGlassDatePicker> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   int? _lastMode;
   int? _lastStyle;
   int? _lastMinDate;
@@ -149,6 +151,7 @@ class _LiquidGlassDatePickerState extends State<LiquidGlassDatePicker> {
     _lastMaxDate = widget.maximumDate?.millisecondsSinceEpoch;
     _lastMinuteInterval = widget.minuteInterval;
     _lastColor = widget.color?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

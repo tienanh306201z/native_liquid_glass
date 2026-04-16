@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'utils/native_liquid_glass_utils.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
 
 /// Controller for [LiquidGlassSearchBar].
@@ -162,8 +163,9 @@ class LiquidGlassSearchBar extends StatefulWidget {
   State<LiquidGlassSearchBar> createState() => _LiquidGlassSearchBarState();
 }
 
-class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with SingleTickerProviderStateMixin {
+class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with SingleTickerProviderStateMixin, LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   late bool _isExpanded;
   final TextEditingController _textController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
@@ -201,6 +203,7 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
     _lastTint = widget.tint?.toARGB32();
     _lastTextColor = widget.textColor?.toARGB32();
     _lastPlaceholderColor = widget.placeholderColor?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

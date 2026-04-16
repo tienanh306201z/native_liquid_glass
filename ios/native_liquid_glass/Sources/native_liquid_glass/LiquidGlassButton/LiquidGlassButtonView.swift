@@ -15,6 +15,7 @@ final class LiquidGlassButtonPlatformView: NSObject, FlutterPlatformView {
   // UIKit legacy path (iOS < 16)
   private var legacyButton: UIButton?
   private var legacyConfig: LiquidGlassButtonConfig?
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -36,6 +37,7 @@ final class LiquidGlassButtonPlatformView: NSObject, FlutterPlatformView {
     containerView.clipsToBounds = false
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     if #available(iOS 16.0, *) {
       configureSwiftUI(args: args)
@@ -91,6 +93,10 @@ final class LiquidGlassButtonPlatformView: NSObject, FlutterPlatformView {
           result(["width": Double(size.width), "height": Double(size.height)])
         }
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

@@ -7,6 +7,7 @@ final class LiquidGlassMenuPlatformView: NSObject, FlutterPlatformView {
   private let containerView: UIView
   private let button: UIButton
   private let methodChannel: FlutterMethodChannel
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -27,6 +28,7 @@ final class LiquidGlassMenuPlatformView: NSObject, FlutterPlatformView {
     )
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     configureMenu(args: args)
     setupMethodChannelHandler()
@@ -156,6 +158,10 @@ final class LiquidGlassMenuPlatformView: NSObject, FlutterPlatformView {
         let size = self.button.intrinsicContentSize
         result(["width": Double(size.width), "height": Double(size.height)])
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

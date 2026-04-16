@@ -15,6 +15,7 @@ final class LiquidGlassSearchScaffoldPlatformView: NSObject, FlutterPlatformView
   private var nativeTabBarView: LiquidGlassNativeTabBarControllerView?
   private var searchController: UISearchController?
   private var searchPlaceholder: String = "Search"
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -33,6 +34,7 @@ final class LiquidGlassSearchScaffoldPlatformView: NSObject, FlutterPlatformView
     self.hostViewController = hostViewController
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     configureScaffold(args: args)
     setupMethodChannelHandler()
@@ -250,6 +252,10 @@ final class LiquidGlassSearchScaffoldPlatformView: NSObject, FlutterPlatformView
         }
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

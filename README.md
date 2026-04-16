@@ -46,7 +46,7 @@ This plugin supports both **CocoaPods** and **Swift Package Manager (SPM)**.
 
 ```yaml
 dependencies:
-    native_liquid_glass: ^0.2.5
+    native_liquid_glass: ^0.2.6
 ```
 
 Then run `flutter pub get`.
@@ -331,6 +331,20 @@ LiquidGlassPopover.show(
   builder: (_) => const Text('Popover content'),
   anchorRect: Offset.zero & const Size(50, 50),
 );
+```
+
+## Overlay suppression
+
+Native glass platform views sit above Flutter's rendering surface. When Flutter shows overlays (`showModalBottomSheet`, `showDialog`, page transitions), the glass can bleed through.
+
+This is handled **automatically** — every glass widget hides itself when its route is no longer current and restores when it is. Glass items _inside_ the overlay stay visible. No setup required.
+
+For custom overlays that don't go through the Navigator, use the manual API:
+
+```dart
+NativeLiquidGlassLifecycle.suppressGlassEffects();
+await showMyCustomOverlay();
+NativeLiquidGlassLifecycle.unsuppressGlassEffects();
 ```
 
 ## Device qualification check

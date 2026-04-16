@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.6
+
+### Glass overlay suppression (automatic)
+
+- **New**: all glass platform views automatically hide when a Flutter overlay (bottom sheet, dialog, page push) covers them, preventing the native glass from bleeding through Flutter-drawn content. Glass items *inside* the overlay stay visible.
+- Uses `ModalRoute.of(context).isCurrent` — fully automatic, zero setup required. Each widget manages its own visibility via the new `LiquidGlassRouteSuppression` mixin.
+- Two suppression layers that can coexist:
+  - **Route-based (automatic)**: per-widget, driven by Flutter's `InheritedWidget` mechanism. Works with any navigator, handles nested popups via the route's own `isCurrent` state.
+  - **Global (manual)**: `NativeLiquidGlassLifecycle.suppressGlassEffects()` / `.unsuppressGlassEffects()` for custom overlays that don't use the Navigator. Reference-counted for safe nesting.
+- Optional `LiquidGlassNavigatorObserver` still available for apps that prefer the observer pattern.
+- Example app: container preview page now includes "Bottom Sheet" and "Push Screen" test buttons.
+
 ## 0.2.5
 
 ### LiquidGlassContainer

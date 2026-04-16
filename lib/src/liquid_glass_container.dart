@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_config.dart';
 import 'utils/liquid_glass_spring.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// A container widget that applies a native Liquid Glass effect to its child.
@@ -54,8 +55,12 @@ class LiquidGlassContainer extends StatefulWidget {
   State<LiquidGlassContainer> createState() => _LiquidGlassContainerState();
 }
 
-class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
+class _LiquidGlassContainerState extends State<LiquidGlassContainer>
+    with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+
+  @override
+  MethodChannel? get suppressionChannel => _nativeChannel;
   String? _lastEffect;
   String? _lastShape;
   double? _lastCornerRadius;
@@ -143,6 +148,7 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer> {
     _lastCustomPathSize = widget.config.customPathSize;
     _lastBorderSignature = widget.config.border?.signature;
     _lastBackgroundColor = widget.config.backgroundColor?.toARGB32();
+    syncGlassRouteVisibility();
   }
 
   @override

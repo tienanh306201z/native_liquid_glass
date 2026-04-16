@@ -13,6 +13,7 @@ final class LiquidGlassSegmentedControlPlatformView: NSObject, FlutterPlatformVi
 
   // Pre-iOS 26 UIKit path
   private var segmentedControl: UISegmentedControl?
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -29,6 +30,7 @@ final class LiquidGlassSegmentedControlPlatformView: NSObject, FlutterPlatformVi
     )
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     if #available(iOS 26.0, *) {
       configureSwiftUI(args: args)
@@ -212,6 +214,10 @@ final class LiquidGlassSegmentedControlPlatformView: NSObject, FlutterPlatformVi
         }
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

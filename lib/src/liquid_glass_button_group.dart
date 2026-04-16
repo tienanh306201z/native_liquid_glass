@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'liquid_glass_button.dart' show LiquidGlassImagePlacement, LiquidGlassButtonStyle;
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
 
 /// Data model for a button inside [LiquidGlassButtonGroup].
@@ -162,8 +163,9 @@ class LiquidGlassButtonGroup extends StatefulWidget {
   State<LiquidGlassButtonGroup> createState() => _LiquidGlassButtonGroupState();
 }
 
-class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> {
+class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   final Map<int, NativeLiquidGlassIconPayload> _iconPayloads = {};
   int _payloadRequestId = 0;
   bool _payloadsResolved = false;
@@ -314,6 +316,7 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> {
     _lastButtonsHash = null;
     _syncPropsToNativeIfNeeded();
     Future.delayed(const Duration(milliseconds: 10), _requestIntrinsicSize);
+    syncGlassRouteVisibility();
   }
 
   @override

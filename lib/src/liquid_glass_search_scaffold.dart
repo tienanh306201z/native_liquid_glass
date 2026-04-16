@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'liquid_glass_tab_bar.dart';
 import 'shares/liquid_glass_icon.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
 /// A full-screen scaffold that wraps a native UITabBarController with
@@ -105,8 +106,9 @@ class LiquidGlassSearchScaffold extends StatefulWidget {
   State<LiquidGlassSearchScaffold> createState() => _LiquidGlassSearchScaffoldState();
 }
 
-class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> {
+class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   List<Map<String, Object?>>? _nativeTabs;
   Map<String, Object?>? _nativeActionButton;
   int _nativePayloadRequestId = 0;
@@ -277,6 +279,7 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> {
     channel.setMethodCallHandler(_handleNativeMethodCall);
     _nativeChannel = channel;
     _lastConfigHash = _computeConfigHash();
+    syncGlassRouteVisibility();
   }
 
   @override

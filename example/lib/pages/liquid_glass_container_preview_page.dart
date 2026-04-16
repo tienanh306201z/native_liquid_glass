@@ -74,6 +74,28 @@ class _LiquidGlassContainerPreviewPageState extends State<LiquidGlassContainerPr
                   ),
                 ),
               ),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _showTestBottomSheet(context),
+                      icon: const Icon(Icons.vertical_align_bottom),
+                      label: const Text('Bottom Sheet'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(builder: (_) => const _GlassScreenB()),
+                      ),
+                      icon: const Icon(Icons.arrow_forward),
+                      label: const Text('Push Screen'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -154,6 +176,35 @@ class _LiquidGlassContainerPreviewPageState extends State<LiquidGlassContainerPr
     );
   }
 
+  void _showTestBottomSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.9,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Flutter Bottom Sheet', style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 24),
+            LiquidGlassContainer(
+              config: const LiquidGlassConfig(
+                effect: LiquidGlassEffect.regular,
+                shape: LiquidGlassEffectShape.capsule,
+                interactive: true,
+              ),
+              width: 200,
+              height: 56,
+              child: const Center(child: Text('Glass inside sheet')),
+            ),
+            const SizedBox(height: 16),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _label(BuildContext context, String text) => Align(
         alignment: Alignment.centerLeft,
         child: Text(text, style: Theme.of(context).textTheme.titleSmall),
@@ -175,6 +226,75 @@ class _LiquidGlassContainerPreviewPageState extends State<LiquidGlassContainerPr
         ),
         SizedBox(width: 32, child: Text(value.toStringAsFixed(0))),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen B — pushed from container preview to test navigation suppression
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _GlassScreenB extends StatelessWidget {
+  const _GlassScreenB();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Screen B (Glass)')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            LiquidGlassContainer(
+              config: const LiquidGlassConfig(
+                effect: LiquidGlassEffect.regular,
+                shape: LiquidGlassEffectShape.rect,
+                cornerRadius: 20,
+                interactive: true,
+              ),
+              width: 220,
+              height: 120,
+              child: const Center(child: Text('Glass on Screen B')),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                builder: (ctx) => SizedBox(
+                  height: MediaQuery.of(ctx).size.height * 0.9,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Sheet from Screen B',
+                            style: Theme.of(ctx).textTheme.titleLarge),
+                        const SizedBox(height: 24),
+                        LiquidGlassContainer(
+                          config: const LiquidGlassConfig(
+                            effect: LiquidGlassEffect.regular,
+                            shape: LiquidGlassEffectShape.capsule,
+                            interactive: true,
+                          ),
+                          width: 200,
+                          height: 56,
+                          child: const Center(child: Text('Glass inside sheet')),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Close')),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.vertical_align_bottom),
+              label: const Text('Bottom Sheet'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

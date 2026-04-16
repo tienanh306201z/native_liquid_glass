@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'shares/liquid_glass_border.dart';
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
 
 /// Image placement options for buttons with both image and label.
@@ -317,8 +318,9 @@ class LiquidGlassButton extends StatefulWidget {
   State<LiquidGlassButton> createState() => _LiquidGlassButtonState();
 }
 
-class _LiquidGlassButtonState extends State<LiquidGlassButton> {
+class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   NativeLiquidGlassIconPayload? _iconPayload;
   int _nativePayloadRequestId = 0;
   bool _nativeIconPayloadResolved = false;
@@ -383,6 +385,7 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> {
     if (!widget._iconOnly || widget.size == null) {
       Future.delayed(const Duration(milliseconds: 10), _requestIntrinsicSize);
     }
+    syncGlassRouteVisibility();
   }
 
   int _computeConfigHash() {

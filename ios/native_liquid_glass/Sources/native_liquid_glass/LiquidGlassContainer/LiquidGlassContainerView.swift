@@ -10,6 +10,7 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
   private let methodChannel: FlutterMethodChannel
   private var hostingController: UIHostingController<AnyView>?
   private var viewModel: AnyObject?  // type-erased; actual type is LiquidGlassContainerViewModel (iOS 26+)
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -26,6 +27,7 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
     )
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     setupGlassView(args: args)
     setupMethodChannelHandler()
@@ -92,6 +94,10 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
         self.updateGlassEffect(args: args, animated: animated)
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

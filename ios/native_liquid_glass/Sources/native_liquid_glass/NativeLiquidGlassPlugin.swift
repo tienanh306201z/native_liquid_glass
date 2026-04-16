@@ -104,5 +104,8 @@ public class NativeLiquidGlassPlugin: NSObject, FlutterPlugin {
       messenger: registrar.messenger(),
       hostViewController: registrar.viewController
     )
+
+    // Initialize lifecycle channel for glass effect suppression (overlay handling)
+    GlassEffectSuppressor.shared.setup(messenger: registrar.messenger())
   }
 }

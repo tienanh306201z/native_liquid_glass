@@ -6,6 +6,7 @@ final class LiquidGlassProgressViewPlatformView: NSObject, FlutterPlatformView {
   private let containerView: UIView
   private let methodChannel: FlutterMethodChannel
   private let progressView: UIProgressView
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -26,6 +27,7 @@ final class LiquidGlassProgressViewPlatformView: NSObject, FlutterPlatformView {
     progressView.progress = (args?["progress"] as? NSNumber)?.floatValue ?? 0
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     if let pt = Self.decodeColor(from: args?["progressTintColor"]) {
       progressView.progressTintColor = pt
@@ -83,6 +85,10 @@ final class LiquidGlassProgressViewPlatformView: NSObject, FlutterPlatformView {
         }
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

@@ -6,6 +6,7 @@ final class LiquidGlassActivityIndicatorPlatformView: NSObject, FlutterPlatformV
   private let containerView: UIView
   private let methodChannel: FlutterMethodChannel
   private let indicator: UIActivityIndicatorView
+  private var suppressObserver: GlassSuppressObserver?
 
   init(
     frame: CGRect,
@@ -28,6 +29,7 @@ final class LiquidGlassActivityIndicatorPlatformView: NSObject, FlutterPlatformV
     indicator.hidesWhenStopped = (args?["hidesWhenStopped"] as? Bool) ?? true
 
     super.init()
+    suppressObserver = GlassSuppressObserver(view: containerView)
 
     if let color = Self.decodeColor(from: args?["color"]) {
       indicator.color = color
@@ -86,6 +88,10 @@ final class LiquidGlassActivityIndicatorPlatformView: NSObject, FlutterPlatformV
         }
         result(nil)
 
+      case "setSuppressed":
+        let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
+        self.suppressObserver?.setRouteSuppressed(suppressed)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

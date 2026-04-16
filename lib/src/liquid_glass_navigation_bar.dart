@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
+import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
 
 /// A navigation bar item for leading/trailing actions.
@@ -78,8 +79,9 @@ class LiquidGlassNavigationBar extends StatefulWidget {
   State<LiquidGlassNavigationBar> createState() => _LiquidGlassNavigationBarState();
 }
 
-class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> {
+class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
+  @override MethodChannel? get suppressionChannel => _nativeChannel;
   String? _lastTitle;
   int? _lastTintColor;
   int? _lastBgColor;
@@ -144,6 +146,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> {
     _lastTitleStyleHash = textStyleSignature(widget.titleTextStyle);
     _lastLeadingItemsHash = _computeItemsHash(widget.leadingItems);
     _lastTrailingItemsHash = _computeItemsHash(widget.trailingItems);
+    syncGlassRouteVisibility();
   }
 
   @override

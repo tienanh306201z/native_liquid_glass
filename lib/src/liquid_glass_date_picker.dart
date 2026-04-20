@@ -1,8 +1,23 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
+
+/// Gesture factories for the native date picker's `UiKitView`.
+///
+/// The picker needs taps (compact-style popover trigger, inline-style
+/// day buttons) *and* vertical drags (wheel-style spinners). Declaring
+/// both up-front prevents Flutter from buffering/cancelling the scroll
+/// mid-gesture, which would leave a wheel stuck between values.
+final Set<Factory<OneSequenceGestureRecognizer>> _datePickerGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+  Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
+  Factory<HorizontalDragGestureRecognizer>(() => HorizontalDragGestureRecognizer()),
+};
 
 /// Mode of the date picker.
 enum LiquidGlassDatePickerMode {
@@ -216,6 +231,7 @@ class _LiquidGlassDatePickerState extends State<LiquidGlassDatePicker> with Liqu
           creationParams: _buildCreationParams(),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _datePickerGestureRecognizers,
         ),
       );
     }

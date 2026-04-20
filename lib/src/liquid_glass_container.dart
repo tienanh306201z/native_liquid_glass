@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_config.dart';
-import 'utils/liquid_glass_spring.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 
@@ -72,8 +71,6 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer>
   Size? _lastCustomPathSize;
   int? _lastBorderSignature;
   int? _lastBackgroundColor;
-
-  bool _isPressed = false;
 
   @override
   void didUpdateWidget(covariant LiquidGlassContainer oldWidget) {
@@ -181,43 +178,29 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer>
       ),
     );
 
-    // Interactive spring press animation.
-    //
-    // Scales UP (not down) on press to mirror the "spring out" aesthetic
-    // that `LiquidGlassButton` and `LiquidGlassToolbar` get from Apple's
-    // native `Glass.regular.interactive()` on iOS 26+. The container
-    // can't just use `.interactive()` natively because its `UiKitView`
-    // is wrapped in `IgnorePointer` (so Flutter child widgets inside
-    // the container can still receive taps) — touches never reach the
-    // native glass view, so the press feedback has to be Flutter-side.
-    // Matching the spring preset (`LiquidGlassSpring.interactive()`,
-    // 150 ms / 0.14 bounce) keeps the timing consistent across widgets.
-    if (widget.config.interactive) {
-      content = SpringBuilder(
-        value: _isPressed ? 1.04 : 1.0,
-        spring: LiquidGlassSpring.interactive(),
-        builder: (context, scale, child) =>
-            Transform.scale(scale: scale, child: child),
-        child: content,
-      );
-    }
-
     // Tap handling — children get priority via the default gesture arena.
-    // onTapDown fires immediately for visual feedback; onTapCancel fires
-    // if a child wins the arena, bouncing the scale back gracefully.
-    if (widget.config.interactive || widget.onTap != null) {
+    // Press feedback is entirely native: `setPressed` forwards the two
+    // edge events (down, up/cancel) via method channel, and SwiftUI
+    // runs the scale spring via `withAnimation`. Zero per-frame Flutter
+    // work, no transform applied to the `UiKitView` per frame.
+    if (widget.onTap != null) {
       content = GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapDown: (_) => _setPressed(true),
         onTapUp: (_) {
-          setState(() => _isPressed = false);
+          _setPressed(false);
           widget.onTap?.call();
         },
-        onTapCancel: () => setState(() => _isPressed = false),
+        onTapCancel: () => _setPressed(false),
         child: content,
       );
     }
 
     return content;
+  }
+
+  void _setPressed(bool pressed) {
+    if (!widget.config.interactive) return;
+    _nativeChannel?.invokeMethod('setPressed', {'pressed': pressed});
   }
 }

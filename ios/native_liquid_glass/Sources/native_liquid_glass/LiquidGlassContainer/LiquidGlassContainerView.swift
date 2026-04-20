@@ -98,6 +98,19 @@ final class LiquidGlassContainerPlatformView: NSObject, FlutterPlatformView {
         let suppressed = (call.arguments as? [String: Any])?["suppressed"] as? Bool ?? false
         self.suppressObserver?.setRouteSuppressed(suppressed)
         result(nil)
+
+      case "setPressed":
+        // Native-mode press feedback: Flutter only forwards the two
+        // edge events (down / up|cancel) per tap. The scale animation
+        // runs entirely in SwiftUI via `withAnimation(.spring)`, so
+        // Flutter does zero per-frame work and the platform view
+        // never gets a per-frame transform.
+        let pressed = (call.arguments as? [String: Any])?["pressed"] as? Bool ?? false
+        if #available(iOS 26.0, *) {
+          (self.viewModel as? LiquidGlassContainerViewModel)?.setPressed(pressed)
+        }
+        result(nil)
+
       default:
         result(FlutterMethodNotImplemented)
       }

@@ -1,11 +1,24 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'shares/liquid_glass_icon.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
+
+/// Tap gesture claim for the native tab bar's `UiKitView`.
+///
+/// Tab-item selection and action-button taps go through the native
+/// `UITabBarController`; declaring the recognizer up-front keeps
+/// Flutter's lazy forwarding from delaying or cancelling those
+/// touches.
+final Set<Factory<OneSequenceGestureRecognizer>> _tabBarGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+};
 
 /// Extra height added above the native platform view frame so the iOS liquid
 /// glass visual effects (blur / glow) are not clipped when Flutter composites
@@ -204,6 +217,8 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
   int _nativeTabsVersion = 0;
   int _nativePayloadRequestId = 0;
   int _itemsSignature = 0;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void initState() {
@@ -238,6 +253,8 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     super.reassemble();
 
     clearNativeLiquidGlassIconCaches();
+    _cachedCreationParams = null;
+    _creationParamsCacheKey = null;
     _prepareNativeTabsPayloads();
   }
 
@@ -333,12 +350,45 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
   }
 
   int _labelStyleSignature(TextStyle? style) {
-    final payload = _buildLabelStylePayload(style);
-    if (payload == null) {
-      return 0;
-    }
+    if (style == null) return 0;
+    // Hash the fields directly — avoids building an intermediate `Map` just
+    // to iterate its entries. The four fields below are exactly what
+    // `_buildLabelStylePayload` emits; keep them in sync if either side
+    // grows new fields.
+    return Object.hash(
+      style.fontSize,
+      _fontWeightToInt(style.fontWeight),
+      style.fontFamily?.isNotEmpty == true ? style.fontFamily : null,
+      style.letterSpacing,
+    );
+  }
 
-    return Object.hashAllUnordered(payload.entries.map((entry) => Object.hash(entry.key, entry.value)));
+  Map<String, Object?> _creationParamsCached(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton) {
+    // `nativeTabs`/`nativeActionButton` change identity only when
+    // `_prepareNativeTabsPayloads` publishes a new list via setState,
+    // so identity hashing is a safe proxy for their content here.
+    final key = Object.hashAll([
+      resolvedWidth,
+      widget.height,
+      widget.showLabels,
+      widget.currentIndex,
+      widget.iosItemPositioning,
+      widget.iconSize,
+      _labelStyleSignature(widget.labelTextStyle),
+      widget.selectedItemColor?.toARGB32(),
+      widget.iosItemSpacing,
+      widget.iosItemWidth,
+      identityHashCode(nativeTabs),
+      identityHashCode(nativeActionButton),
+    ]);
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildNativeCreationParams(resolvedWidth, nativeTabs, nativeActionButton);
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
   }
 
   Map<String, Object?> _buildNativeCreationParams(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton) {
@@ -454,9 +504,10 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
       child: UiKitView(
         key: nativeViewKey,
         viewType: 'liquid-glass-tab-bar-view',
-        creationParams: _buildNativeCreationParams(resolvedWidth, nativeTabs, nativeActionButton),
+        creationParams: _creationParamsCached(resolvedWidth, nativeTabs, nativeActionButton),
         creationParamsCodec: const StandardMessageCodec(),
         onPlatformViewCreated: _onNativePlatformViewCreated,
+        gestureRecognizers: _tabBarGestureRecognizers,
       ),
     );
   }

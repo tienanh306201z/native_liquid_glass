@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,6 +10,19 @@ import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
+
+/// Tap-only gesture claim for the native button's `UiKitView`.
+///
+/// Declaring a `TapGestureRecognizer` here makes the native view join the
+/// gesture arena for tap-like touches, so presses are forwarded promptly
+/// (no delayed buffering) and the full down→up sequence reaches the
+/// SwiftUI button. Without this, the interactive glass effect can scale
+/// up on a fast tap and fail to scale back when Flutter's default
+/// lazy-forwarding pipeline drops or cancels the release event.
+final Set<Factory<OneSequenceGestureRecognizer>> _buttonGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+};
 
 /// Image placement options for buttons with both image and label.
 enum LiquidGlassImagePlacement {
@@ -328,6 +343,10 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
   double? _nativeWidth;
   double? _nativeHeight;
   int? _lastConfigHash;
+  Size? _cachedEstimatedSize;
+  int? _estimateCacheKey;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void initState() {
@@ -359,6 +378,10 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
         _nativeWidth = null;
         _nativeHeight = null;
         _lastConfigHash = null;
+        _cachedEstimatedSize = null;
+        _estimateCacheKey = null;
+        _cachedCreationParams = null;
+        _creationParamsCacheKey = null;
       });
       _syncPropsToNativeIfNeeded();
     }
@@ -375,10 +398,13 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
     final channel = MethodChannel('liquid-glass-button-view/$viewId');
     channel.setMethodCallHandler(_handleNativeMethodCall);
     _nativeChannel = channel;
-    // Reset hash so any stale value set against the previously-destroyed native
-    // view (e.g. from _prepareNativeIconPayloads calling sync on an old channel)
-    // cannot prevent this fresh view from receiving its first full sync.
-    _lastConfigHash = null;
+    // The native view was just created with creationParams matching
+    // `_creationParamsCacheKey`. Seed `_lastConfigHash` with it so
+    // `_syncPropsToNativeIfNeeded` becomes a no-op unless props have
+    // changed since. If props did change (e.g. a late payload resolved
+    // between build and this callback), the hash will differ and we
+    // still push the delta.
+    _lastConfigHash = _creationParamsCacheKey;
     _syncPropsToNativeIfNeeded();
     // Refine to the native intrinsic size for text buttons (always) and for
     // icon-only buttons that didn't pin an explicit size.
@@ -424,18 +450,57 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
     ]);
   }
 
+  int _computeSyncHash({Size? resolvedSize}) {
+    final isIconOnly = widget._iconOnly;
+    final side = isIconOnly ? _resolveIconOnlySize() : null;
+    final w = isIconOnly ? side : resolvedSize?.width;
+    final h = isIconOnly ? side : resolvedSize?.height;
+    return Object.hash(_computeConfigHash(), w, h);
+  }
+
+  Map<String, Object?> _creationParamsCached({Size? resolvedSize}) {
+    final key = _computeSyncHash(resolvedSize: resolvedSize);
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildNativeCreationParams(resolvedSize: resolvedSize);
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
+  }
+
   Future<void> _syncPropsToNativeIfNeeded() async {
     final ch = _nativeChannel;
     if (ch == null) return;
 
-    final hash = _computeConfigHash();
+    final size = _resolveNativeSize(context);
+    final hash = _computeSyncHash(resolvedSize: size);
     if (_lastConfigHash != hash) {
-      await ch.invokeMethod('updateConfig', _buildNativeCreationParams(resolvedSize: _resolveNativeSize(context)));
+      // Native's `updateConfig` returns the post-layout intrinsic size in
+      // its result, so consume it here instead of firing a separate
+      // `getIntrinsicSize` round-trip — halves the channel traffic per
+      // prop change.
+      final result = await ch.invokeMethod<Map<Object?, Object?>>(
+        'updateConfig',
+        _buildNativeCreationParams(resolvedSize: size),
+      );
       _lastConfigHash = hash;
       if (!widget._iconOnly || widget.size == null) {
-        _requestIntrinsicSize();
+        _applyIntrinsicSizeResult(result);
       }
     }
+  }
+
+  void _applyIntrinsicSizeResult(Map<Object?, Object?>? size) {
+    if (!mounted || size == null) return;
+    final w = (size['width'] as num?)?.toDouble();
+    final h = (size['height'] as num?)?.toDouble();
+    if (w == null && h == null) return;
+    setState(() {
+      if (w != null) _nativeWidth = w;
+      if (h != null) _nativeHeight = h;
+    });
   }
 
   @override
@@ -512,6 +577,22 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
     // ScreenUtil-scaled `labelTextStyle`, leaving the button at a stale
     // size until the async `getIntrinsicSize` round-trip caught up.
     final style = widget.labelTextStyle;
+    final textDir = Directionality.maybeOf(context) ?? TextDirection.ltr;
+    final hasIcon = widget.icon != null;
+
+    final cacheKey = Object.hash(
+      widget.label,
+      textStyleSignature(style),
+      hasIcon,
+      widget.iconSize,
+      widget.imagePadding,
+      textDir,
+    );
+    final cached = _cachedEstimatedSize;
+    if (_estimateCacheKey == cacheKey && cached != null) {
+      return cached;
+    }
+
     final resolvedStyle = TextStyle(
       fontSize: style?.fontSize ?? 17,
       fontWeight: style?.fontWeight ?? FontWeight.w600,
@@ -521,12 +602,10 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
     );
 
     final textPainter = TextPainter(
-      textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      textDirection: textDir,
       maxLines: 1,
       text: TextSpan(text: widget.label, style: resolvedStyle),
     )..layout();
-
-    final hasIcon = widget.icon != null;
 
     const horizontalInsets = 32.0;
     const verticalInsets = 20.0;
@@ -536,7 +615,10 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
     final estimatedWidth = math.max(44.0, (horizontalInsets + textPainter.width + iconContribution).ceilToDouble());
     final estimatedHeight = math.max(32.0, (verticalInsets + textPainter.height).ceilToDouble());
 
-    return Size(estimatedWidth, estimatedHeight);
+    final size = Size(estimatedWidth, estimatedHeight);
+    _estimateCacheKey = cacheKey;
+    _cachedEstimatedSize = size;
+    return size;
   }
 
   Size _resolveNativeSize(BuildContext context) {
@@ -622,9 +704,10 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
                 height: iconSide,
                 child: UiKitView(
                   viewType: 'liquid-glass-button-view',
-                  creationParams: _buildNativeCreationParams(),
+                  creationParams: _creationParamsCached(),
                   creationParamsCodec: const StandardMessageCodec(),
                   onPlatformViewCreated: _onPlatformViewCreated,
+                  gestureRecognizers: _buttonGestureRecognizers,
                 ),
               );
         // When the caller asked for wrap-content (`size: null`), release
@@ -665,9 +748,10 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
         height: nativeSize.height,
         child: UiKitView(
           viewType: 'liquid-glass-button-view',
-          creationParams: _buildNativeCreationParams(resolvedSize: nativeSize),
+          creationParams: _creationParamsCached(resolvedSize: nativeSize),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _buttonGestureRecognizers,
         ),
       );
       // Same wrap-content treatment as the icon-only path.

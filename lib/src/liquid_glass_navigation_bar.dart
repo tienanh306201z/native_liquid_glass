@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +7,16 @@ import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
+
+/// Tap gesture claim for the native navigation bar's `UiKitView`.
+///
+/// Leading/trailing bar-button items tap to fire `onItemTapped`;
+/// declaring the recognizer up-front prevents Flutter's lazy forwarding
+/// from losing the touch.
+final Set<Factory<OneSequenceGestureRecognizer>> _navBarGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+};
 
 /// A navigation bar item for leading/trailing actions.
 class LiquidGlassNavBarItem {
@@ -88,6 +100,8 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
   int _lastTitleStyleHash = 0;
   int _lastLeadingItemsHash = 0;
   int _lastTrailingItemsHash = 0;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void didUpdateWidget(covariant LiquidGlassNavigationBar oldWidget) {
@@ -155,6 +169,30 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
     super.dispose();
   }
 
+  int _computeCreationParamsHash() {
+    return Object.hashAll([
+      widget.title,
+      widget.largeTitle,
+      _computeItemsHash(widget.leadingItems),
+      _computeItemsHash(widget.trailingItems),
+      widget.backgroundColor?.toARGB32(),
+      widget.tintColor?.toARGB32(),
+      textStyleSignature(widget.titleTextStyle),
+    ]);
+  }
+
+  Map<String, Object?> _creationParamsCached() {
+    final key = _computeCreationParamsHash();
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildCreationParams();
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
+  }
+
   Map<String, Object?> _buildCreationParams() {
     return <String, Object?>{
       'title': widget.title,
@@ -179,9 +217,10 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
         height: _height,
         child: UiKitView(
           viewType: 'liquid-glass-navigation-bar-view',
-          creationParams: _buildCreationParams(),
+          creationParams: _creationParamsCached(),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _navBarGestureRecognizers,
         ),
       );
     }

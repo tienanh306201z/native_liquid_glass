@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.2.7
+
+### Performance overhaul (all interactive widgets)
+
+- **TextPainter / size-estimate caching.** `LiquidGlassButton._estimateWrapContentSize` and `LiquidGlassToolbar._estimateToolbarWidth` no longer allocate a fresh `TextPainter` and run `.layout()` on every rebuild. Results are cached on a key derived from the inputs that actually affect measurement (label, text-style signature, icon presence, item spacing, resolved padding, text direction) and returned on cache hit. Biggest win on toolbars with many labeled items and buttons inside frequently-rebuilt trees (lists, animated containers).
+- **`creationParams` Map caching.** Every interactive native widget (button, toolbar, button_group, tab_bar, search_scaffold, search_bar, menu, navigation_bar) now reuses the same `Map<String, Object?>` across rebuilds when the inputs haven't changed. `UiKitView.creationParams` is consumed once at native-view creation, so the previous per-build Map + nested-list allocations were pure waste — measurable pressure on the Dart GC for toolbars / button groups with many items.
+- **Redundant post-creation native sync eliminated.** `_onPlatformViewCreated` previously reset `_lastConfigHash = null` and fired an immediate `updateConfig` / `updateButtons` / `updateToolbar` round-trip that re-sent exactly what `creationParams` had just delivered. Now seeds the hash from the creationParams cache key so the follow-up sync is a no-op in the common case; only fires the delta if props genuinely drifted between build and the native-view callback (e.g. a late icon payload resolved).
+- **Button channel traffic halved on every prop change.** `LiquidGlassButton._syncPropsToNativeIfNeeded` now consumes the `{width, height}` already returned by the native `updateConfig` call instead of making a separate `getIntrinsicSize` round-trip after every update. Each prop change (enabled toggle, icon swap, tint change, etc.) goes from **2 channel round-trips → 1**.
+- **Tab bar label-style hashing no longer allocates a Map.** `_labelStyleSignature` used to call `_buildLabelStylePayload(style)` — building an intermediate `Map` on each call — just to iterate its entries for `Object.hashAllUnordered`. Now hashes the four `TextStyle` fields directly via `Object.hash`, no Map allocation.
+- **Payload-generation counter replaces manual hash-null in `LiquidGlassToolbar` and `LiquidGlassButtonGroup`.** Async icon-payload resolution no longer needs `_lastConfigHash = null` bookkeeping; bumping a generation counter that's folded into the config hash invalidates both the native-sync check and the cached creationParams map in one step.
+- **Cache invalidation on `reassemble`** (hot-reload). Every widget that holds cached estimates / params now clears them in `reassemble` so code changes to measurement constants take effect without a full restart.
+
+### Native touch forwarding — "stuck press" fix
+
+- **Root cause.** Several widgets' `UiKitView` declared no `gestureRecognizers` factory. Flutter's default lazy-forwarding pipeline for platform views then buffered touches, and on taps where the arena resolved late the release event could arrive as a cancel (or not at all) — the most visible symptom being `LiquidGlassButton` scaling up on the interactive glass press and never returning because the press/release pair wasn't clean.
+- **Fix.** Every interactive native view now declares the gesture recognizers its native side actually needs:
+  - `LiquidGlassButton` / `LiquidGlassButtonGroup` / `LiquidGlassToolbar` / `LiquidGlassTabBar` / `LiquidGlassSearchScaffold` / `LiquidGlassNavigationBar` / `LiquidGlassColorPicker` — `TapGestureRecognizer`.
+  - `LiquidGlassMenu` — `TapGestureRecognizer` + `LongPressGestureRecognizer` (native `UIMenu` opens on either).
+  - `LiquidGlassSearchBar` — `TapGestureRecognizer` + `HorizontalDragGestureRecognizer` (text-field focus taps + selection-handle drag).
+  - `LiquidGlassDatePicker` — `TapGestureRecognizer` + vertical & horizontal drag (wheel-style spinners specifically needed this; without it the wheel could jam mid-spin).
+- With the native view claiming the gesture arena up-front, the full down → up sequence reaches the SwiftUI button every press, so the interactive glass scale always has a clean release to animate against.
+
+### LiquidGlassContainer — native press animation
+
+- **Press feedback moved from Flutter to native.** The interactive spring scale previously ran Flutter-side via `SpringBuilder` + `Transform.scale`, which rebuilt the widget tree on every frame of the animation. That path has been removed.
+- **New native path**: `GestureDetector` forwards two edge events per tap (`setPressed(true)` on down, `setPressed(false)` on up/cancel) via the method channel. The SwiftUI view model flips `@Published var isPressed` inside `withAnimation(.bouncy(duration: 0.35, extraBounce: 0.0))`, and the body applies `.scaleEffect(isPressed ? 1.04 : 1.0)`. CoreAnimation drives the spring; Flutter does zero per-frame work, and the platform view never gets a per-frame transform applied to it.
+- Visual result matches Apple's `Glass.interactive()` press feel on `LiquidGlassButton` / `LiquidGlassToolbar` — visible overshoot on release, snappy press-down — so a container sitting next to a native button reads as a single system.
+- `.interactive()` on non-interactive containers is a no-op (identity transform at rest), so the change costs nothing for non-pressable containers.
+
 ## 0.2.6
 
 ### Glass overlay suppression (automatic)

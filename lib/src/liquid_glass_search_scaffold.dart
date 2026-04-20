@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +7,16 @@ import 'liquid_glass_tab_bar.dart';
 import 'shares/liquid_glass_icon.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
+
+/// Tap gesture claim for the native search scaffold's `UiKitView`.
+///
+/// The native `UITabBarController` + search tab takes taps on tab items,
+/// search field, and action button; declaring the recognizer up-front
+/// keeps Flutter's lazy forwarding from delaying or cancelling them.
+final Set<Factory<OneSequenceGestureRecognizer>> _searchScaffoldGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+};
 
 /// A full-screen scaffold that wraps a native UITabBarController with
 /// inline search support (UISearchTab on iOS 26+).
@@ -115,6 +127,8 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
   bool _payloadsResolved = false;
   final int _nativeTabsVersion = 0;
   int? _lastConfigHash;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void initState() {
@@ -174,6 +188,9 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
   void reassemble() {
     super.reassemble();
     clearNativeLiquidGlassIconCaches();
+    _cachedCreationParams = null;
+    _creationParamsCacheKey = null;
+    _lastConfigHash = null;
     _prepareNativeTabsPayloads();
   }
 
@@ -288,6 +305,29 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
     super.dispose();
   }
 
+  Map<String, Object?> _creationParamsCached(List<Map<String, Object?>> nativeTabs) {
+    // `nativeTabs` is produced by `_prepareNativeTabsPayloads` via setState,
+    // so a new list identity indicates fresh tab payloads. Combining its
+    // identity hash with the style config hash and widget-local props that
+    // flow into the map covers every input cleanly.
+    final key = Object.hash(
+      identityHashCode(nativeTabs),
+      identityHashCode(_nativeActionButton),
+      _computeConfigHash(),
+      widget.selectedIndex,
+      widget.searchHint,
+      widget.searchEnabled,
+    );
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildCreationParams(nativeTabs);
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
+  }
+
   Map<String, Object?> _buildCreationParams(List<Map<String, Object?>> nativeTabs) {
     final labelStylePayload = _buildLabelStylePayload(widget.labelTextStyle);
 
@@ -317,9 +357,10 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
       final nativeView = UiKitView(
         key: ValueKey(_nativeTabsVersion),
         viewType: 'liquid-glass-search-scaffold-view',
-        creationParams: _buildCreationParams(_nativeTabs!),
+        creationParams: _creationParamsCached(_nativeTabs!),
         creationParamsCodec: const StandardMessageCodec(),
         onPlatformViewCreated: _onPlatformViewCreated,
+        gestureRecognizers: _searchScaffoldGestureRecognizers,
       );
 
       if (widget.height != null) {

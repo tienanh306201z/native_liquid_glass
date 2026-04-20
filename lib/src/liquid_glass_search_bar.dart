@@ -1,9 +1,22 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
+
+/// Gesture factories for the native search bar's `UiKitView`.
+///
+/// The search field takes taps (focus, cancel button) and pans inside
+/// its text (selection handles on iOS). Claiming both up-front keeps
+/// Flutter's gesture arena from swallowing keyboard-focus taps.
+final Set<Factory<OneSequenceGestureRecognizer>> _searchBarGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+  Factory<HorizontalDragGestureRecognizer>(() => HorizontalDragGestureRecognizer()),
+};
 
 /// Controller for [LiquidGlassSearchBar].
 class LiquidGlassSearchBarController extends ChangeNotifier {
@@ -176,6 +189,8 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
   int? _lastPlaceholderColor;
   int? _lastCancelButtonColor;
   int? _lastIconColor;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void initState() {
@@ -190,6 +205,8 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
   void reassemble() {
     super.reassemble();
     _lastPlaceholder = null;
+    _cachedCreationParams = null;
+    _creationParamsCacheKey = null;
     _syncPropsToNativeIfNeeded();
   }
 
@@ -273,6 +290,39 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
     super.dispose();
   }
 
+  int _computeCreationParamsHash() {
+    return Object.hashAll([
+      widget.placeholder,
+      widget.expandable,
+      widget.initiallyExpanded,
+      widget.expandedHeight,
+      widget.tint?.toARGB32(),
+      widget.showCancelButton,
+      widget.cancelText,
+      widget.textColor?.toARGB32(),
+      widget.placeholderColor?.toARGB32(),
+      textStyleSignature(widget.textStyle),
+      widget.cancelButtonColor?.toARGB32(),
+      widget.iconColor?.toARGB32(),
+      widget.borderRadius,
+      widget.interactive,
+      widget.glassEffectUnionId,
+      widget.glassEffectId,
+    ]);
+  }
+
+  Map<String, Object?> _creationParamsCached() {
+    final key = _computeCreationParamsHash();
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildCreationParams();
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
+  }
+
   Map<String, Object?> _buildCreationParams() {
     return <String, Object?>{
       'placeholder': widget.placeholder,
@@ -301,9 +351,10 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
         height: widget.expandedHeight,
         child: UiKitView(
           viewType: 'liquid-glass-search-bar-view',
-          creationParams: _buildCreationParams(),
+          creationParams: _creationParamsCached(),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _searchBarGestureRecognizers,
         ),
       );
     }

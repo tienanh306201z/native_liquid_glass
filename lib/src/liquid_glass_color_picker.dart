@@ -1,8 +1,20 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
+
+/// Tap-only gesture claim for the native color picker's `UiKitView`.
+///
+/// The swatch opens the system color picker on tap; declaring the
+/// recognizer up-front avoids Flutter's default lazy forwarding swallowing
+/// the touch.
+final Set<Factory<OneSequenceGestureRecognizer>> _colorPickerGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+};
 
 /// A native iOS color picker (UIColorWell) with Liquid Glass effects on iOS 26+.
 ///
@@ -89,6 +101,7 @@ class _LiquidGlassColorPickerState extends State<LiquidGlassColorPicker> with Li
           creationParams: _buildCreationParams(),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _colorPickerGestureRecognizers,
         ),
       );
     }

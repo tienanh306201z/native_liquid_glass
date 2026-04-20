@@ -28,6 +28,29 @@ final class LiquidGlassContainerViewModel: ObservableObject {
   /// Normalised + padded path data for animatable custom shapes.
   @Published var normalizedPathData: [CGFloat] = []
 
+  /// Tracks the press state. Driven by `setPressed` method-channel
+  /// calls from the Flutter `GestureDetector` (two events per tap —
+  /// down and up/cancel). The SwiftUI view applies a spring-animated
+  /// `.scaleEffect` when this flips, so CoreAnimation drives the
+  /// press feedback with zero per-frame Flutter work.
+  @Published var isPressed: Bool = false
+
+  /// Applies a spring-animated press state. Called from the method
+  /// channel; the `withAnimation` is what gives CoreAnimation the
+  /// spring — if we just flipped the @Published var bare, the scale
+  /// would snap.
+  ///
+  /// Uses `.bouncy` to approximate Apple's `Glass.interactive()` press
+  /// feel on `LiquidGlassButton` (visible overshoot on release, snappy
+  /// press-down). Apple's exact internal spring for `.interactive()`
+  /// isn't public, so this is the closest public preset — not an exact
+  /// match, but visually consistent side-by-side with native buttons.
+  func setPressed(_ pressed: Bool) {
+    withAnimation(.bouncy(duration: 0.35, extraBounce: 0.0)) {
+      self.isPressed = pressed
+    }
+  }
+
   var isCustom: Bool {
     shape == "custom"
       && customPathOps != nil
@@ -318,6 +341,14 @@ struct LiquidGlassContainerSwiftUIView: View {
           id: viewModel.glassEffectId,
           namespace: namespace
         )
+        // Native press feedback. When the Flutter side forwards
+        // `setPressed`, `viewModel.isPressed` toggles inside a
+        // `withAnimation(.spring)` block — CoreAnimation drives the
+        // scale with no per-frame Flutter work. Scales up on press
+        // (not down) to mirror Apple's `.interactive()` spring-out
+        // aesthetic. At rest this is the identity transform, so it
+        // costs nothing on non-interactive containers.
+        .scaleEffect(viewModel.isPressed ? 1.04 : 1.0)
       }
       .frame(width: geometry.size.width, height: geometry.size.height)
     }

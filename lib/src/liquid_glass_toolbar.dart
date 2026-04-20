@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,6 +8,17 @@ import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
+
+/// Tap-only gesture claim for the native toolbar's `UiKitView`.
+///
+/// Matches the pattern used by the other interactive native widgets:
+/// joining the gesture arena for taps ensures full down→up sequences
+/// reach the SwiftUI buttons instead of getting delayed or cancelled
+/// by Flutter's default lazy-forwarding for platform views.
+final Set<Factory<OneSequenceGestureRecognizer>> _toolbarGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+};
 
 /// A toolbar item.
 class LiquidGlassToolbarItem {
@@ -206,6 +219,11 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
   List<NativeLiquidGlassIconPayload>? _itemPayloads;
   int _nativePayloadRequestId = 0;
   int _itemsSignature = 0;
+  int _payloadsGeneration = 0;
+  int? _estimateCacheKey;
+  double? _cachedEstimate;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void initState() {
@@ -218,6 +236,11 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
   void reassemble() {
     super.reassemble();
     clearNativeLiquidGlassIconCaches();
+    _estimateCacheKey = null;
+    _cachedEstimate = null;
+    _cachedCreationParams = null;
+    _creationParamsCacheKey = null;
+    _lastConfigHash = null;
     _prepareIconPayloads();
   }
 
@@ -243,7 +266,10 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
     if (!mounted || requestId != _nativePayloadRequestId) return;
     setState(() {
       _itemPayloads = payloads;
-      _lastConfigHash = null; // force sync on next call
+      // Bump the generation so `_computeConfigHash` and the cached
+      // params key both invalidate automatically — no need to null
+      // `_lastConfigHash` manually.
+      _payloadsGeneration++;
     });
     _syncPropsToNativeIfNeeded();
   }
@@ -258,20 +284,39 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
       widget.itemSpacing,
       widget.padding,
       widget.border?.signature,
+      _payloadsGeneration,
     ]);
+  }
+
+  int _computeSyncHash(EdgeInsets padding) {
+    // Resolved `EdgeInsets` carries the text-direction component of the
+    // geometry, so including it in the key handles RTL flips too.
+    return Object.hash(_computeConfigHash(), padding);
+  }
+
+  Map<String, Object?> _creationParamsCached(EdgeInsets padding) {
+    final key = _computeSyncHash(padding);
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildCreationParams(padding);
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
   }
 
   Future<void> _syncPropsToNativeIfNeeded() async {
     final ch = _nativeChannel;
     if (ch == null) return;
 
-    final hash = _computeConfigHash();
+    final textDirection = mounted
+        ? (Directionality.maybeOf(context) ?? TextDirection.ltr)
+        : TextDirection.ltr;
+    final padding = widget.padding.resolve(textDirection);
+    final hash = _computeSyncHash(padding);
     if (_lastConfigHash != hash) {
-      final textDirection = mounted
-          ? (Directionality.maybeOf(context) ?? TextDirection.ltr)
-          : TextDirection.ltr;
-      final padding = widget.padding.resolve(textDirection);
-      await ch.invokeMethod('updateToolbar', _buildCreationParams(padding));
+      await ch.invokeMethod('updateToolbar', _creationParamsCached(padding));
       _lastConfigHash = hash;
     }
   }
@@ -288,8 +333,12 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
     final channel = MethodChannel('liquid-glass-toolbar-view/$viewId');
     channel.setMethodCallHandler(_handleNativeMethodCall);
     _nativeChannel = channel;
-    // Always sync current state — creation params may have been built before
-    // icon payloads resolved, leaving native with missing icons.
+    // Native just received the cached creationParams, so seed
+    // `_lastConfigHash` to skip a redundant `updateToolbar` round-trip
+    // on the common case. If props drifted between build and this
+    // callback (e.g. a late payload resolved) the hash will differ and
+    // `_syncPropsToNativeIfNeeded` still pushes the delta.
+    _lastConfigHash = _creationParamsCacheKey;
     _syncPropsToNativeIfNeeded();
     syncGlassRouteVisibility();
   }
@@ -329,12 +378,28 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
   /// hugs its content (and `width: null` + flex spacer auto-promotes
   /// to fill-parent anyway, so the estimator isn't used in that case).
   double _estimateToolbarWidth(BuildContext context, EdgeInsets resolvedPadding) {
+    final labelTextDirection =
+        Directionality.maybeOf(context) ?? TextDirection.ltr;
+    final cacheKey = Object.hashAll([
+      textStyleSignature(widget.labelTextStyle),
+      widget.itemSpacing,
+      resolvedPadding.horizontal,
+      labelTextDirection,
+      for (final item in widget.items)
+        if (item is LiquidGlassToolbarSpacer)
+          Object.hash('spacer', item.flexible, item.width)
+        else
+          Object.hash(item.id, item.label, item.icon != null, item.iconSize),
+    ]);
+    final cached = _cachedEstimate;
+    if (_estimateCacheKey == cacheKey && cached != null) {
+      return cached;
+    }
+
     double total = 0;
 
     final labelFontSize = widget.labelTextStyle?.fontSize ?? 17;
     final labelFontWeight = widget.labelTextStyle?.fontWeight ?? FontWeight.w400;
-    final labelTextDirection =
-        Directionality.maybeOf(context) ?? TextDirection.ltr;
 
     bool groupOpen = false;
     int groupCount = 0;
@@ -389,7 +454,10 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
     // glass shape.
     total += groupCount * resolvedPadding.horizontal;
 
-    return total.ceilToDouble();
+    final result = total.ceilToDouble();
+    _estimateCacheKey = cacheKey;
+    _cachedEstimate = result;
+    return result;
   }
 
   /// Whether the items list contains a flexible `LiquidGlassToolbarSpacer`.
@@ -435,9 +503,10 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
         height: widget.height,
         child: UiKitView(
           viewType: 'liquid-glass-toolbar-view',
-          creationParams: _buildCreationParams(padding),
+          creationParams: _creationParamsCached(padding),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _toolbarGestureRecognizers,
         ),
       );
       // Wrap-content mode needs to shrink below a tight-horizontal

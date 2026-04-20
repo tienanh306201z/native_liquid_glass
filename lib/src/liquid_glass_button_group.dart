@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,6 +8,17 @@ import 'shares/liquid_glass_icon.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/text_style_utils.dart';
+
+/// Tap gesture claim for the native button-group's `UiKitView`.
+///
+/// Each button's tap fires `onPressed` on the owning `LiquidGlassButtonData`;
+/// declaring the recognizer up-front keeps Flutter's lazy forwarding from
+/// buffering/cancelling the touch mid-press (same symptom we saw on the
+/// standalone button — glass effect scaled up and never returned).
+final Set<Factory<OneSequenceGestureRecognizer>> _buttonGroupGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+};
 
 /// Data model for a button inside [LiquidGlassButtonGroup].
 ///
@@ -170,9 +183,12 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
   int _payloadRequestId = 0;
   bool _payloadsResolved = false;
   int _hotReloadEpoch = 0;
+  int _payloadsGeneration = 0;
   double? _nativeHeight;
   int? _lastButtonsHash;
   int _iconSignature = 0;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void initState() {
@@ -208,6 +224,8 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
         _hotReloadEpoch++;
         _nativeHeight = null;
         _lastButtonsHash = null;
+        _cachedCreationParams = null;
+        _creationParamsCacheKey = null;
       });
     }
   }
@@ -235,11 +253,11 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
 
     setState(() {
       _payloadsResolved = true;
+      // Bumping the generation invalidates `_computeButtonsHash` and the
+      // cached creationParams map in one step — no need to null
+      // `_lastButtonsHash` manually.
+      _payloadsGeneration++;
     });
-    // Push resolved payloads to native. The hash must be cleared first because
-    // _computeButtonsHash does not include raw payload bytes — forcing the sync
-    // ensures icons appear without a hot-reload.
-    _lastButtonsHash = null;
     _syncPropsToNativeIfNeeded();
   }
 
@@ -249,7 +267,7 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
 
     final hash = _computeButtonsHash();
     if (_lastButtonsHash != hash) {
-      await ch.invokeMethod('updateButtons', _buildCreationParams());
+      await ch.invokeMethod('updateButtons', _creationParamsCached());
       _lastButtonsHash = hash;
       _requestIntrinsicSize();
     }
@@ -294,7 +312,20 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
         ),
       ),
       _hotReloadEpoch,
+      _payloadsGeneration,
     );
+  }
+
+  Map<String, Object?> _creationParamsCached() {
+    final key = _computeButtonsHash();
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildCreationParams();
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
@@ -311,9 +342,12 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
     final channel = MethodChannel('liquid-glass-button-group-view/$viewId');
     channel.setMethodCallHandler(_handleNativeMethodCall);
     _nativeChannel = channel;
-    // Reset hash so any stale value set against a previously-destroyed native
-    // view cannot prevent this fresh view from receiving its first full sync.
-    _lastButtonsHash = null;
+    // Native just received the cached creationParams; seed `_lastButtonsHash`
+    // with the same key so `_syncPropsToNativeIfNeeded` skips a redundant
+    // `updateButtons` round-trip in the common case. If props drifted
+    // between build and this callback (e.g. a late payload resolved) the
+    // hash will differ and we still push the delta.
+    _lastButtonsHash = _creationParamsCacheKey;
     _syncPropsToNativeIfNeeded();
     Future.delayed(const Duration(milliseconds: 10), _requestIntrinsicSize);
     syncGlassRouteVisibility();
@@ -395,9 +429,10 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
         height: _nativeHeight ?? 56,
         child: UiKitView(
           viewType: 'liquid-glass-button-group-view',
-          creationParams: _buildCreationParams(),
+          creationParams: _creationParamsCached(),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _buttonGroupGestureRecognizers,
         ),
       );
     }

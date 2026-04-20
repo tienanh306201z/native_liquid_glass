@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +7,17 @@ import 'shares/liquid_glass_icon.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/text_style_utils.dart';
+
+/// Tap-and-long-press gesture claim for the native menu's `UiKitView`.
+///
+/// The menu trigger opens a native `UIMenu` on tap or long-press;
+/// declaring both recognizers up-front prevents Flutter's default lazy
+/// forwarding from swallowing or delaying those gestures.
+final Set<Factory<OneSequenceGestureRecognizer>> _menuGestureRecognizers =
+    <Factory<OneSequenceGestureRecognizer>>{
+  Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+  Factory<LongPressGestureRecognizer>(() => LongPressGestureRecognizer()),
+};
 
 /// A single menu item for [LiquidGlassMenu].
 class LiquidGlassMenuItem {
@@ -112,6 +125,8 @@ class _LiquidGlassMenuState extends State<LiquidGlassMenu> with LiquidGlassRoute
   int? _lastItemsHash;
   int? _lastColor;
   double? _nativeWidth;
+  Map<String, Object?>? _cachedCreationParams;
+  int? _creationParamsCacheKey;
 
   @override
   void didUpdateWidget(covariant LiquidGlassMenu oldWidget) {
@@ -170,6 +185,42 @@ class _LiquidGlassMenuState extends State<LiquidGlassMenu> with LiquidGlassRoute
     super.dispose();
   }
 
+  int _itemSignature(LiquidGlassMenuItem item) {
+    final children = item.children;
+    return Object.hash(
+      item.id,
+      item.title,
+      item.icon?.sfSymbolName,
+      item.isDestructive,
+      item.isDisabled,
+      children == null ? 0 : Object.hashAll(children.map(_itemSignature)),
+    );
+  }
+
+  int _computeCreationParamsHash() {
+    return Object.hashAll([
+      Object.hashAll(widget.items.map(_itemSignature)),
+      widget.label,
+      widget.icon?.sfSymbolName,
+      widget.color?.toARGB32(),
+      widget.iconSize,
+      textStyleSignature(widget.labelTextStyle),
+      widget.menuTitle,
+    ]);
+  }
+
+  Map<String, Object?> _creationParamsCached() {
+    final key = _computeCreationParamsHash();
+    final cached = _cachedCreationParams;
+    if (_creationParamsCacheKey == key && cached != null) {
+      return cached;
+    }
+    final params = _buildCreationParams();
+    _creationParamsCacheKey = key;
+    _cachedCreationParams = params;
+    return params;
+  }
+
   Map<String, Object?> _buildCreationParams() {
     return <String, Object?>{
       'items': widget.items.map((i) => i.toMap()).toList(),
@@ -192,9 +243,10 @@ class _LiquidGlassMenuState extends State<LiquidGlassMenu> with LiquidGlassRoute
         height: widget.height,
         child: UiKitView(
           viewType: 'liquid-glass-menu-view',
-          creationParams: _buildCreationParams(),
+          creationParams: _creationParamsCached(),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
+          gestureRecognizers: _menuGestureRecognizers,
         ),
       );
     }

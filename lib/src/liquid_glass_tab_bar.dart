@@ -264,18 +264,26 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     _nativeChannel?.setMethodCallHandler(null);
     super.dispose();
   }
+  void _rollbackIfSelectionRejected(int nativeSelectedIndex) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.currentIndex == nativeSelectedIndex) {
+        return;
+      }
+      _lastNativeSelectedIndex = null;
+      _syncNativeSelectedIndex(widget.currentIndex);
+    });
+  }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onTabSelected':
         final rawIndex = call.arguments;
-        if (rawIndex is int) {
-          _lastNativeSelectedIndex = rawIndex;
-          widget.onTabSelected(rawIndex);
-        } else if (rawIndex is num) {
+        if (rawIndex is num) {
           final selectedIndex = rawIndex.toInt();
           _lastNativeSelectedIndex = selectedIndex;
           widget.onTabSelected(selectedIndex);
+          _rollbackIfSelectionRejected(selectedIndex);
         }
         return;
       case 'onActionButtonPressed':

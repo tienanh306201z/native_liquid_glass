@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.8
+
+### Swift Package Manager fix
+
+- **Dash-cased SPM product name.** `ios/native_liquid_glass/Package.swift` now exposes the library product as `native-liquid-glass` (dash-cased) to match Flutter's plugin convention. Flutter's generated `FlutterGeneratedPluginSwiftPackage` references plugin products by their dash-cased name (like first-party `url-launcher-ios`), so the previous underscore-cased product failed to resolve in SPM-based Flutter iOS projects with `product 'native-liquid-glass' ... not found in package 'native_liquid_glass'`. The target/module name is unchanged, so `import native_liquid_glass` and the CocoaPods path are unaffected. Fixes #4.
+
 ## 0.2.7
 
 ### Performance overhaul (all interactive widgets)

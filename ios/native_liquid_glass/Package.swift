@@ -7,7 +7,7 @@ let package = Package(
         .iOS("13.0"),
     ],
     products: [
-        .library(name: "native_liquid_glass", targets: ["native_liquid_glass"])
+        .library(name: "native-liquid-glass", targets: ["native_liquid_glass"])
     ],
     dependencies: [
         .package(url: "https://github.com/SVGKit/SVGKit", from: "3.0.0"),

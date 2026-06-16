@@ -138,7 +138,7 @@ class _LiquidGlassMenuState extends State<LiquidGlassMenu> with LiquidGlassRoute
     final ch = _nativeChannel;
     if (ch == null) return;
 
-    final itemsHash = Object.hashAll(widget.items.map((i) => i.id));
+    final itemsHash = Object.hashAll(widget.items.map(_itemSignature));
     final color = widget.color?.toARGB32();
     if (_lastItemsHash != itemsHash || _lastColor != color) {
       await ch.invokeMethod('updateMenu', _buildCreationParams());
@@ -148,8 +148,10 @@ class _LiquidGlassMenuState extends State<LiquidGlassMenu> with LiquidGlassRoute
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     if (call.method == 'itemSelected') {
-      final id = call.arguments as String;
+      final id = call.arguments as String?;
+      if (id == null) return;
       widget.onItemSelected(id);
     }
   }
@@ -159,7 +161,7 @@ class _LiquidGlassMenuState extends State<LiquidGlassMenu> with LiquidGlassRoute
     final channel = MethodChannel('liquid-glass-menu-view/$viewId');
     channel.setMethodCallHandler(_handleNativeMethodCall);
     _nativeChannel = channel;
-    _lastItemsHash = Object.hashAll(widget.items.map((i) => i.id));
+    _lastItemsHash = Object.hashAll(widget.items.map(_itemSignature));
     _lastColor = widget.color?.toARGB32();
     _requestIntrinsicSize();
     syncGlassRouteVisibility();

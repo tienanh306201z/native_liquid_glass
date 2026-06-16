@@ -322,6 +322,7 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     if (call.method == 'itemTapped') {
       final id = call.arguments as String;
       widget.onItemTapped?.call(id);
@@ -443,6 +444,7 @@ class _LiquidGlassToolbarState extends State<LiquidGlassToolbar> with LiquidGlas
           textDirection: labelTextDirection,
         )..layout();
         contentWidth += painter.width;
+        painter.dispose();
       }
       total += contentWidth + widget.itemSpacing;
       groupOpen = true;

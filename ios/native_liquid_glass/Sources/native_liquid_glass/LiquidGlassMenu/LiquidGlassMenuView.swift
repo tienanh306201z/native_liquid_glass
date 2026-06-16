@@ -97,6 +97,8 @@ final class LiquidGlassMenuPlatformView: NSObject, FlutterPlatformView {
         button.setTitle(label, for: .normal)
       }
     }
+    // NOTE: The trigger icon is SF-Symbol-only by design. Flutter IconData
+    // and asset PNGs are not supported here; only `sfSymbol` names resolve.
     if let sfSymbol {
       if let size = iconSize {
         let cfg = UIImage.SymbolConfiguration(pointSize: size, weight: .semibold)

@@ -92,6 +92,7 @@ final class LiquidGlassStepperPlatformView: NSObject, FlutterPlatformView {
 
       case "setRange":
         if let args = call.arguments as? [String: Any] {
+          let previousValue = self.stepper.value
           if let min = (args["min"] as? NSNumber)?.doubleValue {
             self.stepper.minimumValue = min
           }
@@ -100,6 +101,11 @@ final class LiquidGlassStepperPlatformView: NSObject, FlutterPlatformView {
           }
           if let step = (args["step"] as? NSNumber)?.doubleValue {
             self.stepper.stepValue = step
+          }
+          // UIStepper silently clamps its value into the new range. If that
+          // happened, echo the clamped value back so Dart/native stay in sync.
+          if self.stepper.value != previousValue {
+            self.methodChannel.invokeMethod("valueChanged", arguments: self.stepper.value)
           }
         }
         result(nil)

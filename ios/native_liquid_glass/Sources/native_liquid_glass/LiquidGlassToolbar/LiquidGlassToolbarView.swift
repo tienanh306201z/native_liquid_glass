@@ -316,7 +316,53 @@ final class LiquidGlassToolbarPlatformView: NSObject, FlutterPlatformView {
     }
   }
 
+  // Memoizes decoded + cropped/scaled images so repeated `updateToolbar` /
+  // `apply` calls with the same raw image bytes and point size reuse the
+  // already-decoded `UIImage` instead of re-running the per-pixel content
+  // scan in `cropToContent` every time. Keyed by (data identity, point
+  // size); guarded by a lock because platform-view callbacks, while
+  // normally main-thread, are not guaranteed to be serialized here.
+  private static let imageCacheLock = NSLock()
+  private static var imageCache: [String: UIImage] = [:]
+
+  private static func imageCacheKey(
+    iconDataPng: Data?, assetData: Data?, iconPointSize: Double
+  ) -> String {
+    // `Data.hashValue` distinguishes distinct byte payloads cheaply; the
+    // length is folded in to cut the (already small) collision surface.
+    let assetPart = assetData.map { "a:\($0.count):\($0.hashValue)" } ?? "a:nil"
+    let iconPart = iconDataPng.map { "i:\($0.count):\($0.hashValue)" } ?? "i:nil"
+    return "\(assetPart)|\(iconPart)|s:\(iconPointSize)"
+  }
+
   static func decodeToolbarImage(
+    iconDataPng: Data?, assetData: Data?, iconPointSize: Double
+  )
+    -> UIImage?
+  {
+    let cacheKey = imageCacheKey(
+      iconDataPng: iconDataPng, assetData: assetData, iconPointSize: iconPointSize
+    )
+    imageCacheLock.lock()
+    let cached = imageCache[cacheKey]
+    imageCacheLock.unlock()
+    if let cached {
+      return cached
+    }
+
+    let decoded = decodeToolbarImageUncached(
+      iconDataPng: iconDataPng, assetData: assetData, iconPointSize: iconPointSize
+    )
+
+    if let decoded {
+      imageCacheLock.lock()
+      imageCache[cacheKey] = decoded
+      imageCacheLock.unlock()
+    }
+    return decoded
+  }
+
+  private static func decodeToolbarImageUncached(
     iconDataPng: Data?, assetData: Data?, iconPointSize: Double
   )
     -> UIImage?

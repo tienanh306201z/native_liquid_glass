@@ -22,16 +22,17 @@ struct LiquidGlassSliderSwiftUIView: View {
 
   var body: some View {
     Group {
+      let safeMax = Swift.max(viewModel.minValue + .ulpOfOne, viewModel.maxValue)
       if let step = viewModel.step, step > 0 {
         Slider(
           value: valueBinding,
-          in: viewModel.minValue...viewModel.maxValue,
+          in: viewModel.minValue...safeMax,
           step: step
         )
       } else {
         Slider(
           value: valueBinding,
-          in: viewModel.minValue...viewModel.maxValue
+          in: viewModel.minValue...safeMax
         )
       }
     }

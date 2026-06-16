@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -192,6 +194,11 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
   Map<String, Object?>? _cachedCreationParams;
   int? _creationParamsCacheKey;
 
+  /// Debounce timer for per-keystroke text changes. Coalesces rapid keystrokes
+  /// so [LiquidGlassSearchBar.onChanged] is not called on every character.
+  Timer? _onChangedDebounce;
+  static const Duration _onChangedDebounceDuration = Duration(milliseconds: 200);
+
   @override
   void initState() {
     super.initState();
@@ -255,10 +262,20 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
   Future<void> _handleNativeMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onChanged':
-        widget.onChanged?.call(call.arguments as String? ?? '');
+        final text = call.arguments as String? ?? '';
+        // Debounce per-character changes so each keystroke is not an immediate
+        // host callback. Submit/clear keep immediate semantics below.
+        _onChangedDebounce?.cancel();
+        _onChangedDebounce = Timer(_onChangedDebounceDuration, () {
+          widget.onChanged?.call(text);
+        });
       case 'onSubmitted':
+        // Submit is immediate: flush any pending debounced change first.
+        _onChangedDebounce?.cancel();
         widget.onSubmitted?.call(call.arguments as String? ?? '');
       case 'onCancel':
+        // Cancel/clear is immediate: drop any pending debounced change.
+        _onChangedDebounce?.cancel();
         _collapse();
         widget.onCancelTap?.call();
       case 'onExpandStateChanged':
@@ -283,6 +300,7 @@ class _LiquidGlassSearchBarState extends State<LiquidGlassSearchBar> with Single
 
   @override
   void dispose() {
+    _onChangedDebounce?.cancel();
     _nativeChannel?.setMethodCallHandler(null);
     _textController.dispose();
     _focusNode.dispose();

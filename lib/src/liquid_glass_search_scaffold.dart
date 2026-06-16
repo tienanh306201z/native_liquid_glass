@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -130,6 +132,12 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
   Map<String, Object?>? _cachedCreationParams;
   int? _creationParamsCacheKey;
 
+  /// Debounce timer for per-keystroke search-text changes. Coalesces rapid
+  /// keystrokes so [LiquidGlassSearchScaffold.onSearchChanged] is not called
+  /// on every character.
+  Timer? _searchChangedDebounce;
+  static const Duration _searchChangedDebounceDuration = Duration(milliseconds: 200);
+
   @override
   void initState() {
     super.initState();
@@ -146,6 +154,9 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
     }
     if (oldWidget.searchEnabled != widget.searchEnabled) {
       _nativeChannel?.invokeMethod('setSearchEnabled', {'enabled': widget.searchEnabled});
+    }
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      _nativeChannel?.invokeMethod('setSelectedTab', {'index': widget.selectedIndex});
     }
     _syncStyleToNativeIfNeeded();
   }
@@ -272,18 +283,26 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     switch (call.method) {
       case 'tabChanged':
-        final index = call.arguments as int;
+        final index = call.arguments as int? ?? 0;
         widget.onTabChanged(index);
       case 'searchChanged':
-        final text = call.arguments as String;
-        widget.onSearchChanged?.call(text);
+        final text = call.arguments as String? ?? '';
+        // Debounce per-character changes so each keystroke is not an
+        // immediate host callback. Submit/clear keep immediate semantics.
+        _searchChangedDebounce?.cancel();
+        _searchChangedDebounce = Timer(_searchChangedDebounceDuration, () {
+          widget.onSearchChanged?.call(text);
+        });
       case 'searchSubmitted':
-        final text = call.arguments as String;
+        final text = call.arguments as String? ?? '';
+        // Submit is immediate: flush any pending debounced change first.
+        _searchChangedDebounce?.cancel();
         widget.onSearchSubmitted?.call(text);
       case 'searchActiveChanged':
-        final active = call.arguments as bool;
+        final active = call.arguments as bool? ?? false;
         widget.onSearchActiveChanged?.call(active);
       case 'actionButtonPressed':
         widget.onActionButtonPressed?.call();
@@ -301,6 +320,7 @@ class _LiquidGlassSearchScaffoldState extends State<LiquidGlassSearchScaffold> w
 
   @override
   void dispose() {
+    _searchChangedDebounce?.cancel();
     _nativeChannel?.setMethodCallHandler(null);
     super.dispose();
   }

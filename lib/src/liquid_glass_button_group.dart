@@ -247,6 +247,9 @@ class _LiquidGlassButtonGroupState extends State<LiquidGlassButtonGroup> with Li
 
     if (!mounted || requestId != _payloadRequestId) return;
 
+    // Rebuild from scratch so stale higher indices from a previously longer
+    // button list don't linger when the list shrinks.
+    _iconPayloads.clear();
     for (var i = 0; i < payloads.length; i++) {
       _iconPayloads[i] = payloads[i];
     }

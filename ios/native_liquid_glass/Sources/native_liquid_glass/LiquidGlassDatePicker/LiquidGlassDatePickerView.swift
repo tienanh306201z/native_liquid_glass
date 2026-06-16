@@ -103,7 +103,7 @@ final class LiquidGlassDatePickerPlatformView: NSObject, FlutterPlatformView {
 
   @objc
   private func handleDateChanged() {
-    let millis = Int(datePicker.date.timeIntervalSince1970 * 1000)
+    let millis = Int64(datePicker.date.timeIntervalSince1970 * 1000)
     methodChannel.invokeMethod("dateChanged", arguments: millis)
   }
 

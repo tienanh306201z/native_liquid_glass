@@ -21,7 +21,28 @@ class LiquidGlassSheet {
   static const _presenterChannel = MethodChannel('liquid-glass-presenter');
   static int _nextId = 0;
 
+  /// Live sheet handles keyed by request id. The shared presenter channel is
+  /// used by alert/sheet/popover at once, so a single persistent handler
+  /// routes dismiss events by id instead of clobbering the handler per-show.
+  static final Map<int, LiquidGlassSheetHandle> _live = <int, LiquidGlassSheetHandle>{};
+  static bool _handlerInstalled = false;
+
   LiquidGlassSheet._();
+
+  /// Install the shared method-call handler exactly once.
+  static void _ensureHandlerInstalled() {
+    if (_handlerInstalled) return;
+    _handlerInstalled = true;
+    _presenterChannel.setMethodCallHandler((call) async {
+      if (call.method == 'sheetDismissed') {
+        final args = call.arguments as Map?;
+        final id = args?['id'] as int?;
+        if (id == null) return;
+        final handle = _live.remove(id);
+        handle?._sheetId = null;
+      }
+    });
+  }
 
   /// Show a sheet with the given parameters.
   ///
@@ -38,8 +59,11 @@ class LiquidGlassSheet {
     final handle = LiquidGlassSheetHandle._();
 
     if (NativeLiquidGlassUtils.supportsLiquidGlass) {
+      _ensureHandlerInstalled();
+
       final id = _nextId++;
       handle._sheetId = id;
+      _live[id] = handle;
 
       _presenterChannel.invokeMethod<void>('showSheet', {
         'id': id,
@@ -48,16 +72,6 @@ class LiquidGlassSheet {
         'detents': detents.map((d) => d.name).toList(),
         'prefersGrabberVisible': prefersGrabberVisible,
         'isModal': isModal,
-      });
-
-      // Listen for dismiss events
-      _presenterChannel.setMethodCallHandler((call) async {
-        if (call.method == 'sheetDismissed') {
-          final args = call.arguments as Map?;
-          if (args != null && args['id'] == id) {
-            handle._sheetId = null;
-          }
-        }
       });
 
       return handle;
@@ -76,9 +90,11 @@ class LiquidGlassSheetHandle {
 
   /// Dismiss the sheet.
   Future<void> dismiss() async {
-    if (_sheetId != null) {
-      await _presenterChannel.invokeMethod<void>('dismissSheet', {'id': _sheetId});
+    final id = _sheetId;
+    if (id != null) {
+      LiquidGlassSheet._live.remove(id);
       _sheetId = null;
+      await _presenterChannel.invokeMethod<void>('dismissSheet', {'id': id});
     }
   }
 }

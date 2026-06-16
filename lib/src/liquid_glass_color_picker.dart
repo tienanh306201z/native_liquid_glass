@@ -79,15 +79,21 @@ class _LiquidGlassColorPickerState extends State<LiquidGlassColorPicker> with Li
     final ch = _nativeChannel;
     if (ch == null) return;
 
-    final color = widget.selectedColor.toARGB32();
-    if (color != _lastColor) {
-      await ch.invokeMethod('setColor', {'color': color});
-      _lastColor = color;
+    try {
+      final color = widget.selectedColor.toARGB32();
+      if (color != _lastColor) {
+        await ch.invokeMethod('setColor', {'color': color});
+        _lastColor = color;
+      }
+    } catch (_) {
+      // Native view may be torn down mid-sync (MissingPluginException /
+      // PlatformException); swallow so it doesn't surface as an unhandled
+      // async error.
     }
   }
 
   Map<String, Object?> _buildCreationParams() {
-    return <String, Object?>{'color': widget.selectedColor.toARGB32(), 'title': widget.title, 'supportsAlpha': widget.supportsAlpha};
+    return <String, Object?>{'color': widget.selectedColor.toARGB32(), 'title': widget.title, 'supportsAlpha': widget.supportsAlpha, 'size': widget.size};
   }
 
   @override

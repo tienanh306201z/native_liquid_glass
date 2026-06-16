@@ -70,7 +70,7 @@ final class LiquidGlassProgressViewPlatformView: NSObject, FlutterPlatformView {
         if let args = call.arguments as? [String: Any],
           let progress = (args["progress"] as? NSNumber)?.floatValue
         {
-          self.progressView.setProgress(progress, animated: true)
+          self.progressView.setProgress(progress, animated: false)
         }
         result(nil)
 

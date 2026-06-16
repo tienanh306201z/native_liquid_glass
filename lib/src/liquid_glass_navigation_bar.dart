@@ -143,8 +143,10 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     if (call.method == 'itemTapped') {
-      final id = call.arguments as String;
+      final id = call.arguments as String?;
+      if (id == null) return;
       widget.onItemTapped?.call(id);
     }
   }

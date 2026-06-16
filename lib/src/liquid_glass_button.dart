@@ -361,10 +361,14 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
 
     final newSignature = widget.icon?.nativeSignature ?? 0;
     if (newSignature != _iconSignature) {
+      // Icon changed: `_prepareNativeIconPayloads` will resolve the fresh
+      // payload and sync to native itself. Syncing here too would push
+      // stale icon bytes and cause a redundant round-trip.
       _iconSignature = newSignature;
       _prepareNativeIconPayloads();
+    } else {
+      _syncPropsToNativeIfNeeded();
     }
-    _syncPropsToNativeIfNeeded();
   }
 
   @override
@@ -405,11 +409,20 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
     // between build and this callback), the hash will differ and we
     // still push the delta.
     _lastConfigHash = _creationParamsCacheKey;
-    _syncPropsToNativeIfNeeded();
-    // Refine to the native intrinsic size for text buttons (always) and for
-    // icon-only buttons that didn't pin an explicit size.
+    // The initial sync's `updateConfig` already returns and applies the
+    // intrinsic size. Only fall back to a separate `getIntrinsicSize`
+    // round-trip when that sync was a no-op (props already in sync, so no
+    // size came back) — for text buttons and unpinned icon buttons that
+    // still need a size. This skips the extra channel trip in the common
+    // case where `updateConfig` did the work.
     if (!widget._iconOnly || widget.size == null) {
-      Future.delayed(const Duration(milliseconds: 10), _requestIntrinsicSize);
+      _syncPropsToNativeIfNeeded().then((appliedSize) {
+        if (!appliedSize && mounted) {
+          Future.delayed(const Duration(milliseconds: 10), _requestIntrinsicSize);
+        }
+      });
+    } else {
+      _syncPropsToNativeIfNeeded();
     }
     syncGlassRouteVisibility();
   }
@@ -470,9 +483,12 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
     return params;
   }
 
-  Future<void> _syncPropsToNativeIfNeeded() async {
+  /// Pushes any changed props to the native view. Returns true when an
+  /// intrinsic size was applied from `updateConfig`'s result (so callers
+  /// can skip a redundant `getIntrinsicSize` round-trip).
+  Future<bool> _syncPropsToNativeIfNeeded() async {
     final ch = _nativeChannel;
-    if (ch == null) return;
+    if (ch == null) return false;
 
     final size = _resolveNativeSize(context);
     final hash = _computeSyncHash(resolvedSize: size);
@@ -487,20 +503,24 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton> with LiquidGlassR
       );
       _lastConfigHash = hash;
       if (!widget._iconOnly || widget.size == null) {
-        _applyIntrinsicSizeResult(result);
+        return _applyIntrinsicSizeResult(result);
       }
     }
+    return false;
   }
 
-  void _applyIntrinsicSizeResult(Map<Object?, Object?>? size) {
-    if (!mounted || size == null) return;
+  /// Applies an intrinsic size returned by native `updateConfig`. Returns
+  /// true when a width or height was actually applied.
+  bool _applyIntrinsicSizeResult(Map<Object?, Object?>? size) {
+    if (!mounted || size == null) return false;
     final w = (size['width'] as num?)?.toDouble();
     final h = (size['height'] as num?)?.toDouble();
-    if (w == null && h == null) return;
+    if (w == null && h == null) return false;
     setState(() {
       if (w != null) _nativeWidth = w;
       if (h != null) _nativeHeight = h;
     });
+    return true;
   }
 
   @override

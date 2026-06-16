@@ -123,10 +123,26 @@ final class LiquidGlassPresenter: NSObject {
     }
     contentVC.isModalInPresentation = isModal
 
+    // Detect user-driven dismissal (swipe-down) so the map entry is released
+    // and Dart can clean up its registry. Retain the proxy on the VC so it
+    // lives as long as the presentation does.
+    let dismissProxy = SheetDismissDelegateProxy(presenter: self, id: id)
+    contentVC.presentationController?.delegate = dismissProxy
+    objc_setAssociatedObject(
+      contentVC, &Self.sheetDelegateKey, dismissProxy, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+
     presentedSheets[id] = contentVC
     host.present(contentVC, animated: true) {
       result(nil)
     }
+  }
+
+  private static var sheetDelegateKey: UInt8 = 0
+
+  fileprivate func sheetDidDismiss(id: Int) {
+    guard presentedSheets[id] != nil else { return }
+    presentedSheets.removeValue(forKey: id)
+    methodChannel.invokeMethod("sheetDismissed", arguments: ["id": id])
   }
 
   private func handleDismissSheet(call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -149,6 +165,7 @@ final class LiquidGlassPresenter: NSObject {
 
   private func handleShowAlert(call: FlutterMethodCall, result: @escaping FlutterResult) {
     guard let args = call.arguments as? [String: Any],
+      let id = (args["id"] as? NSNumber)?.intValue,
       let host = findHostVC()
     else {
       result(FlutterError(code: "NO_HOST", message: "No host view controller", details: nil))
@@ -180,7 +197,8 @@ final class LiquidGlassPresenter: NSObject {
 
       alert.addAction(
         UIAlertAction(title: actionTitle, style: style) { [weak self] _ in
-          self?.methodChannel.invokeMethod("alertActionSelected", arguments: ["actionId": actionId])
+          self?.methodChannel.invokeMethod(
+            "alertActionSelected", arguments: ["id": id, "actionId": actionId])
         })
     }
 
@@ -188,7 +206,8 @@ final class LiquidGlassPresenter: NSObject {
     if actions.isEmpty {
       alert.addAction(
         UIAlertAction(title: "OK", style: .default) { [weak self] _ in
-          self?.methodChannel.invokeMethod("alertActionSelected", arguments: ["actionId": "ok"])
+          self?.methodChannel.invokeMethod(
+            "alertActionSelected", arguments: ["id": id, "actionId": "ok"])
         })
     }
 
@@ -282,5 +301,22 @@ private final class PopoverDelegateProxy: NSObject, UIPopoverPresentationControl
 
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
     presenter?.popoverDidDismiss(id: id)
+  }
+}
+
+// MARK: - Sheet Dismiss Delegate Proxy
+
+private final class SheetDismissDelegateProxy: NSObject, UIAdaptivePresentationControllerDelegate {
+  private weak var presenter: LiquidGlassPresenter?
+  private let id: Int
+
+  init(presenter: LiquidGlassPresenter, id: Int) {
+    self.presenter = presenter
+    self.id = id
+    super.init()
+  }
+
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    presenter?.sheetDidDismiss(id: id)
   }
 }

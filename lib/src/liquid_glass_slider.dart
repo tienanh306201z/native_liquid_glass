@@ -157,8 +157,13 @@ class _LiquidGlassSliderState extends State<LiquidGlassSlider> with LiquidGlassR
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     if (call.method == 'valueChanged') {
       final value = (call.arguments as num).toDouble();
+      // Record the native value before calling onChanged so that the
+      // subsequent didUpdateWidget→_syncPropsToNativeIfNeeded does not
+      // echo the value back unnecessarily.
+      _lastValue = value;
       widget.onChanged(value);
     }
   }

@@ -234,17 +234,31 @@ final class LiquidGlassSearchBarPlatformView: NSObject, FlutterPlatformView {
         if let sb = self.searchBar {
           sb.becomeFirstResponder()
         }
-        // SwiftUI handles expand via its own state
+        if #available(iOS 26.0, *),
+          let vm = self.searchBarViewModel as? LiquidGlassSearchBarViewModel
+        {
+          vm.expand()
+        }
         result(nil)
       case "collapse":
         if let sb = self.searchBar {
           sb.resignFirstResponder()
           sb.text = ""
         }
+        if #available(iOS 26.0, *),
+          let vm = self.searchBarViewModel as? LiquidGlassSearchBarViewModel
+        {
+          vm.collapse()
+        }
         result(nil)
       case "clear":
         if let sb = self.searchBar {
           sb.text = ""
+        }
+        if #available(iOS 26.0, *),
+          let vm = self.searchBarViewModel as? LiquidGlassSearchBarViewModel
+        {
+          vm.clearText()
         }
         result(nil)
       case "setText":
@@ -252,16 +266,31 @@ final class LiquidGlassSearchBarPlatformView: NSObject, FlutterPlatformView {
           if let sb = self.searchBar {
             sb.text = text
           }
+          if #available(iOS 26.0, *),
+            let vm = self.searchBarViewModel as? LiquidGlassSearchBarViewModel
+          {
+            vm.setText(text)
+          }
         }
         result(nil)
       case "focus":
         if let sb = self.searchBar {
           sb.becomeFirstResponder()
         }
+        if #available(iOS 26.0, *),
+          let vm = self.searchBarViewModel as? LiquidGlassSearchBarViewModel
+        {
+          vm.requestFocus()
+        }
         result(nil)
       case "unfocus":
         if let sb = self.searchBar {
           sb.resignFirstResponder()
+        }
+        if #available(iOS 26.0, *),
+          let vm = self.searchBarViewModel as? LiquidGlassSearchBarViewModel
+        {
+          vm.resignFocus()
         }
         result(nil)
       case "setPlaceholder":

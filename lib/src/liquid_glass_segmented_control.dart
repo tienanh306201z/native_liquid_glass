@@ -97,8 +97,10 @@ class _LiquidGlassSegmentedControlState extends State<LiquidGlassSegmentedContro
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     if (call.method == 'valueChanged') {
-      final index = call.arguments as int;
+      final index = call.arguments as int? ?? 0;
+      _lastSelectedIndex = index;
       widget.onValueChanged(index);
     }
   }

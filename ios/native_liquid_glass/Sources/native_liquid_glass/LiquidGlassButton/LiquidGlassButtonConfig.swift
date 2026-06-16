@@ -36,6 +36,20 @@ struct LiquidGlassButtonConfig {
   let borderColor: UIColor?
   let borderWidth: CGFloat
 
+  /// Reference-type box memoizing the decoded image. The config is a value
+  /// type whose image-affecting inputs (`assetIconPng`, `iconDataPng`,
+  /// `sfSymbolName`, `iconSize`) are all immutable `let`s, so the decode
+  /// result is stable for the lifetime of an instance. `resolvedImage()` is
+  /// called from several call sites (UIKit `setImage`, SwiftUI item views),
+  /// and without this every call re-decoded + re-resized + re-alpha-scanned
+  /// the same bytes. The box caches that work once per config instance.
+  private final class ImageCache {
+    var computed = false
+    var image: UIImage?
+  }
+
+  private let imageCache = ImageCache()
+
   /// Optional label typography customization.
   struct LabelStyle {
     let fontSize: CGFloat?
@@ -344,6 +358,20 @@ struct LiquidGlassButtonConfig {
   }
 
   func resolvedImage() -> UIImage? {
+    // Reuse the decoded result across repeated calls within this instance.
+    // `imageCache` is a reference type, so populating it from this
+    // non-mutating method is allowed and keeps `resolvedImage()` cheap on
+    // every call after the first.
+    if imageCache.computed {
+      return imageCache.image
+    }
+    let resolved = computeResolvedImage()
+    imageCache.image = resolved
+    imageCache.computed = true
+    return resolved
+  }
+
+  private func computeResolvedImage() -> UIImage? {
     if let (data, isIconData) = preferredImageData(),
       let image = decodeImage(from: data, isIconData: isIconData)
     {

@@ -97,8 +97,10 @@ class _LiquidGlassToggleState extends State<LiquidGlassToggle> with LiquidGlassR
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     if (call.method == 'valueChanged') {
-      final value = call.arguments as bool;
+      final value = call.arguments as bool? ?? false;
+      _lastValue = value;
       widget.onChanged(value);
     }
   }

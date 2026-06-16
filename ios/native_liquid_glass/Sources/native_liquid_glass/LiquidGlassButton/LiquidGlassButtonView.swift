@@ -75,7 +75,11 @@ final class LiquidGlassButtonPlatformView: NSObject, FlutterPlatformView {
           if let vm = self.viewModel as? LiquidGlassButtonViewModel {
             vm.config = newConfig
           }
-          DispatchQueue.main.async {
+          DispatchQueue.main.async { [weak self] in
+            guard let self else {
+              result(nil)
+              return
+            }
             self.hostingController?.view.setNeedsLayout()
             self.hostingController?.view.layoutIfNeeded()
             let size =

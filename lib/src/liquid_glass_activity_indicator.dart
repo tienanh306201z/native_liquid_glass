@@ -65,14 +65,20 @@ class _LiquidGlassActivityIndicatorState
     final ch = _nativeChannel;
     if (ch == null) return;
 
-    if (_lastAnimating != widget.animating) {
-      await ch.invokeMethod('setAnimating', {'animating': widget.animating});
-      _lastAnimating = widget.animating;
-    }
-    final color = widget.color?.toARGB32();
-    if (_lastColor != color) {
-      await ch.invokeMethod('setColor', {'color': color});
-      _lastColor = color;
+    try {
+      if (_lastAnimating != widget.animating) {
+        await ch.invokeMethod('setAnimating', {'animating': widget.animating});
+        _lastAnimating = widget.animating;
+      }
+      final color = widget.color?.toARGB32();
+      if (_lastColor != color) {
+        await ch.invokeMethod('setColor', {'color': color});
+        _lastColor = color;
+      }
+    } catch (_) {
+      // Native view may be torn down mid-sync (MissingPluginException /
+      // PlatformException); swallow so it doesn't surface as an unhandled
+      // async error.
     }
   }
 

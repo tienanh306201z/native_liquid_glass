@@ -91,6 +91,13 @@ final class LiquidGlassSegmentedControlPlatformView: NSObject, FlutterPlatformVi
     _ args: [String: Any]?, to vm: LiquidGlassSegmentedControlViewModel
   ) {
     vm.labels = (args?["labels"] as? [String]) ?? []
+    // When labels shrink, the current selection may point past the end.
+    // Clamp it into the valid range, guarding against an empty label list.
+    if vm.labels.isEmpty {
+      vm.selection = 0
+    } else {
+      vm.selection = min(vm.selection, vm.labels.count - 1)
+    }
   }
 
   // MARK: - Legacy UIKit path (pre-iOS 26)
@@ -172,7 +179,9 @@ final class LiquidGlassSegmentedControlPlatformView: NSObject, FlutterPlatformVi
             } else {
               vm.selection = index
             }
-          } else if let sc = self.segmentedControl {
+          } else if let sc = self.segmentedControl,
+            index >= 0, index < sc.numberOfSegments
+          {
             if animated {
               UIView.animate(withDuration: 0.2) {
                 sc.selectedSegmentIndex = index

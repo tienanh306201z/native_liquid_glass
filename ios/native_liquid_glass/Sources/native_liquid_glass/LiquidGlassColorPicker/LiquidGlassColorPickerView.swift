@@ -78,12 +78,14 @@ final class LiquidGlassColorPickerPlatformView: NSObject, FlutterPlatformView {
 
     colorWell.addTarget(self, action: #selector(handleColorChanged), for: .valueChanged)
 
+    let size = CGFloat((args?["size"] as? NSNumber)?.doubleValue ?? 44)
+
     containerView.addSubview(colorWell)
     NSLayoutConstraint.activate([
       colorWell.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
       colorWell.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
-      colorWell.widthAnchor.constraint(equalToConstant: 44),
-      colorWell.heightAnchor.constraint(equalToConstant: 44),
+      colorWell.widthAnchor.constraint(equalToConstant: size),
+      colorWell.heightAnchor.constraint(equalToConstant: size),
     ])
   }
 

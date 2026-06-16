@@ -45,7 +45,7 @@ struct LiquidGlassButtonGroupSwiftUI: View {
     GlassEffectContainer(spacing: effectiveSpacingForGlass) {
       if viewModel.axis == .horizontal {
         HStack(alignment: .center, spacing: viewModel.spacing) {
-          ForEach(Array(viewModel.buttons.enumerated()), id: \.offset) { _, button in
+          ForEach(viewModel.buttons) { button in
             LiquidGlassButtonGroupItemView(
               config: button.buttonConfig,
               onPressed: button.onPressed,
@@ -57,7 +57,7 @@ struct LiquidGlassButtonGroupSwiftUI: View {
         .frame(minHeight: 0, maxHeight: .infinity, alignment: .center)
       } else {
         VStack(alignment: .center, spacing: viewModel.spacing) {
-          ForEach(Array(viewModel.buttons.enumerated()), id: \.offset) { _, button in
+          ForEach(viewModel.buttons) { button in
             LiquidGlassButtonGroupItemView(
               config: button.buttonConfig,
               onPressed: button.onPressed,

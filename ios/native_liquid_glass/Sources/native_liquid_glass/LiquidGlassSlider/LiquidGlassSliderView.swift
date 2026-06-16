@@ -138,7 +138,10 @@ final class LiquidGlassSliderPlatformView: NSObject, FlutterPlatformView {
     guard let slider else { return }
     var value = slider.value
     if let step, step > 0 {
-      value = (value / step).rounded() * step
+      let min = slider.minimumValue
+      let max = slider.maximumValue
+      value = min + ((value - min) / step).rounded() * step
+      value = Swift.min(Swift.max(value, min), max)
       slider.value = value
     }
     methodChannel.invokeMethod("valueChanged", arguments: Double(value))
@@ -162,10 +165,11 @@ final class LiquidGlassSliderPlatformView: NSObject, FlutterPlatformView {
           if #available(iOS 26.0, *),
             let vm = self.viewModel as? LiquidGlassSliderViewModel
           {
+            let clamped = Swift.min(Swift.max(value, vm.minValue), vm.maxValue)
             if animated {
-              withAnimation { vm.value = value }
+              withAnimation { vm.value = clamped }
             } else {
-              vm.value = value
+              vm.value = clamped
             }
           } else {
             self.slider?.setValue(Float(value), animated: animated)

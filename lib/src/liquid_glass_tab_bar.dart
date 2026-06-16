@@ -276,6 +276,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     switch (call.method) {
       case 'onTabSelected':
         final rawIndex = call.arguments;

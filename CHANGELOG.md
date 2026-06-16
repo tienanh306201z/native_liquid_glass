@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.10
+
+### Cross-widget performance & correctness pass
+
+Fixes from a full audit of every widget (Dart + native Swift).
+
+- **Eliminated native→Dart→native echo loops.** `LiquidGlassSlider`, `LiquidGlassToggle`, and `LiquidGlassSegmentedControl` now record the incoming value in their native-callback handler before invoking the user callback (matching the stepper), so a parent rebuild no longer pushes the same value straight back to native — removing a redundant channel round-trip on every drag/tap.
+- **Hardened native-call handlers.** Added `mounted` guards and replaced unchecked `as` casts with safe nullable casts across tab bar, toolbar, toggle, segmented control, menu, navigation bar, search scaffold, and date picker, so callbacks can't fire after dispose and a malformed payload can't crash.
+- **Native image-decode caching.** `LiquidGlassButton` and `LiquidGlassToolbar` now memoize decoded/resized icon images instead of re-decoding (incl. per-pixel alpha scans) on every render/update; button group uses stable SwiftUI identity.
+- **Stale state now reaches native.** Menu updates on full item changes (not just `id`); search scaffold pushes `selectedIndex`; search bar's programmatic controls (expand/collapse/clear/setText/focus/unfocus) now work on the iOS 26 SwiftUI path; navigation bar `setStyle` can reset colors to default.
+- **Presenter channel & leak fixes.** Alert and sheet now use a persistent, id-keyed handler registry on the shared presenter channel (no more clobbered handlers / hung futures); user-dismissed sheets are released via a presentation-controller delegate; popover observes its dismiss event.
+- **Other fixes.** Search text changes debounced (~200 ms); SwiftUI slider range guarded against inverted/equal bounds; segmented selection clamped when labels shrink; stepper re-syncs value after a range change; container uses content equality for custom paths and memoizes creation params; date-picker timestamp uses `Int64`; color-picker swatch respects size; progress updates no longer queue overlapping animations.
+
 ## 0.2.9
 
 ### Tab bar — fix colors inverting with device appearance

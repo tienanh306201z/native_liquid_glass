@@ -358,7 +358,7 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
 
   /// Embeds the tab bar controller view to fill the host view.
   private func embedTabBarControllerView() {
-    let controllerView = tabBarController.view!
+    guard let controllerView = tabBarController.view else { return }
     controllerView.translatesAutoresizingMaskIntoConstraints = false
 
     addSubview(controllerView)

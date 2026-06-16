@@ -50,16 +50,22 @@ class _LiquidGlassProgressViewState extends State<LiquidGlassProgressView> with 
     final ch = _nativeChannel;
     if (ch == null) return;
 
-    if (_lastProgress != widget.progress) {
-      await ch.invokeMethod('setProgress', {'progress': widget.progress});
-      _lastProgress = widget.progress;
-    }
-    final pt = widget.progressTintColor?.toARGB32();
-    final tt = widget.trackTintColor?.toARGB32();
-    if (_lastProgressTint != pt || _lastTrackTint != tt) {
-      await ch.invokeMethod('setColors', {'progressTintColor': pt, 'trackTintColor': tt});
-      _lastProgressTint = pt;
-      _lastTrackTint = tt;
+    try {
+      if (_lastProgress != widget.progress) {
+        await ch.invokeMethod('setProgress', {'progress': widget.progress});
+        _lastProgress = widget.progress;
+      }
+      final pt = widget.progressTintColor?.toARGB32();
+      final tt = widget.trackTintColor?.toARGB32();
+      if (_lastProgressTint != pt || _lastTrackTint != tt) {
+        await ch.invokeMethod('setColors', {'progressTintColor': pt, 'trackTintColor': tt});
+        _lastProgressTint = pt;
+        _lastTrackTint = tt;
+      }
+    } catch (_) {
+      // Native view may be torn down mid-sync (MissingPluginException /
+      // PlatformException); swallow so it doesn't surface as an unhandled
+      // async error.
     }
   }
 

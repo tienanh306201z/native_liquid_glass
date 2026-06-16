@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -72,6 +73,21 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer>
   int? _lastBorderSignature;
   int? _lastBackgroundColor;
 
+  // Memoized creation params. `toCreationParams()` re-serializes the custom
+  // path on every call, but the result is only consumed at platform-view
+  // creation. Cache it and invalidate whenever the underlying config changes.
+  Map<String, Object?>? _cachedCreationParams;
+  LiquidGlassConfig? _cachedCreationParamsConfig;
+
+  Map<String, Object?> _creationParams() {
+    if (_cachedCreationParams == null ||
+        !identical(_cachedCreationParamsConfig, widget.config)) {
+      _cachedCreationParams = widget.config.toCreationParams();
+      _cachedCreationParamsConfig = widget.config;
+    }
+    return _cachedCreationParams!;
+  }
+
   @override
   void didUpdateWidget(covariant LiquidGlassContainer oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -108,7 +124,7 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer>
         _lastInteractive != interactive ||
         _lastGlassEffectUnionId != unionId ||
         _lastGlassEffectId != effectId ||
-        !identical(_lastCustomPath, customPath) ||
+        !listEquals(_lastCustomPath, customPath) ||
         _lastCustomPathSize != customPathSize ||
         _lastBorderSignature != borderSignature ||
         _lastBackgroundColor != backgroundColor) {
@@ -162,7 +178,7 @@ class _LiquidGlassContainerState extends State<LiquidGlassContainer>
 
     final nativeView = UiKitView(
       viewType: 'liquid-glass-container-view',
-      creationParams: widget.config.toCreationParams(),
+      creationParams: _creationParams(),
       creationParamsCodec: const StandardMessageCodec(),
       onPlatformViewCreated: _onPlatformViewCreated,
     );

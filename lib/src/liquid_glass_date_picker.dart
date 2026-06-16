@@ -148,6 +148,7 @@ class _LiquidGlassDatePickerState extends State<LiquidGlassDatePicker> with Liqu
   }
 
   Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (!mounted) return;
     if (call.method == 'dateChanged') {
       final millis = call.arguments as int;
       widget.onDateChanged(DateTime.fromMillisecondsSinceEpoch(millis));

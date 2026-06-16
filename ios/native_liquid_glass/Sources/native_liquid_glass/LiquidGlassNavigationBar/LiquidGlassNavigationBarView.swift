@@ -150,23 +150,54 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
 
       case "setStyle":
         if let args = call.arguments as? [String: Any] {
-          if let tintColor = Self.decodeColor(from: args["tintColor"]) {
-            self.navigationBar.tintColor = tintColor
-          }
-          let appearance = self.navigationBar.standardAppearance
-          if let backgroundColor = Self.decodeColor(from: args["backgroundColor"]) {
-            appearance.backgroundColor = backgroundColor
-          }
-          if let titleStyleArgs = args["titleStyle"] as? [String: Any] {
-            let config = LiquidGlassNavigationBarConfig.LabelStyle(arguments: titleStyleArgs)
-            if let titleFont = config?.resolvedFont() {
-              var titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
-              if let spacing = config?.letterSpacing { titleAttrs[.kern] = spacing }
-              appearance.titleTextAttributes = titleAttrs
+          // The Dart side always sends all three keys; a cleared property
+          // arrives as an explicit null (decoded here as NSNull). We must
+          // distinguish "key absent" (leave unchanged) from "key present but
+          // null" (reset to the system default) so clearing a color works.
+
+          // tintColor
+          if args.keys.contains("tintColor") {
+            if args["tintColor"] is NSNull {
+              self.navigationBar.tintColor = nil  // restore system default tint
+            } else if let tintColor = Self.decodeColor(from: args["tintColor"]) {
+              self.navigationBar.tintColor = tintColor
             }
           }
-          self.navigationBar.standardAppearance = appearance
-          self.navigationBar.scrollEdgeAppearance = appearance
+
+          // Rebuild the appearance from a default baseline whenever background
+          // or title styling is part of this update, so that clearing either
+          // one falls back to the system/glass default rather than retaining
+          // the previously applied value.
+          let touchesAppearance =
+            args.keys.contains("backgroundColor") || args.keys.contains("titleStyle")
+          if touchesAppearance {
+            let appearance = UINavigationBarAppearance()
+
+            // backgroundColor
+            if args["backgroundColor"] is NSNull || args["backgroundColor"] == nil {
+              appearance.configureWithDefaultBackground()  // system/glass default
+            } else if let backgroundColor = Self.decodeColor(from: args["backgroundColor"]) {
+              appearance.backgroundColor = backgroundColor
+            }
+
+            // titleStyle
+            if let titleStyleArgs = args["titleStyle"] as? [String: Any],
+              let config = LiquidGlassNavigationBarConfig.LabelStyle(arguments: titleStyleArgs),
+              let titleFont = config.resolvedFont()
+            {
+              var titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
+              if let spacing = config.letterSpacing { titleAttrs[.kern] = spacing }
+              appearance.titleTextAttributes = titleAttrs
+              if self.navigationBar.prefersLargeTitles {
+                appearance.largeTitleTextAttributes = titleAttrs
+              }
+            }
+            // If titleStyle is absent/null the fresh appearance already carries
+            // the system default title attributes, so no extra reset is needed.
+
+            self.navigationBar.standardAppearance = appearance
+            self.navigationBar.scrollEdgeAppearance = appearance
+          }
         }
         result(nil)
 

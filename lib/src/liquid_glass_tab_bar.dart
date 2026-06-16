@@ -371,7 +371,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     );
   }
 
-  Map<String, Object?> _creationParamsCached(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton) {
+  Map<String, Object?> _creationParamsCached(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton, String brightness) {
     // `nativeTabs`/`nativeActionButton` change identity only when
     // `_prepareNativeTabsPayloads` publishes a new list via setState,
     // so identity hashing is a safe proxy for their content here.
@@ -386,6 +386,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
       widget.selectedItemColor?.toARGB32(),
       widget.iosItemSpacing,
       widget.iosItemWidth,
+      brightness,
       identityHashCode(nativeTabs),
       identityHashCode(nativeActionButton),
     ]);
@@ -393,13 +394,13 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     if (_creationParamsCacheKey == key && cached != null) {
       return cached;
     }
-    final params = _buildNativeCreationParams(resolvedWidth, nativeTabs, nativeActionButton);
+    final params = _buildNativeCreationParams(resolvedWidth, nativeTabs, nativeActionButton, brightness);
     _creationParamsCacheKey = key;
     _cachedCreationParams = params;
     return params;
   }
 
-  Map<String, Object?> _buildNativeCreationParams(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton) {
+  Map<String, Object?> _buildNativeCreationParams(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton, String brightness) {
     final labelStylePayload = _buildLabelStylePayload(widget.labelTextStyle);
 
     return <String, Object?>{
@@ -409,6 +410,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
       'showLabels': widget.showLabels,
       'currentIndex': widget.currentIndex,
       'itemPositioning': widget.iosItemPositioning.platformValue,
+      'brightness': brightness,
       ...?(widget.iconSize == null ? null : <String, Object?>{'iconSize': widget.iconSize}),
       ...?(labelStylePayload == null ? null : <String, Object?>{'labelStyle': labelStylePayload}),
       'selectedItemColor': widget.selectedItemColor?.toARGB32(),
@@ -482,7 +484,11 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
         final actionButtonReady = widget.iosActionButton == null || _nativeActionButton != null;
 
         if (NativeLiquidGlassUtils.supportsLiquidGlass && _nativeTabs != null && actionButtonReady) {
-          return _buildNativeIosTabBar(resolvedWidth, _nativeTabs!, _nativeActionButton);
+          // Mirror the app's theme brightness to the native bar so its
+          // background, labels, and icons follow the Flutter theme instead of
+          // the device appearance (which made them invert after navigation).
+          final brightness = Theme.of(context).brightness == Brightness.dark ? 'dark' : 'light';
+          return _buildNativeIosTabBar(resolvedWidth, _nativeTabs!, _nativeActionButton, brightness);
         }
 
         return const SizedBox();
@@ -490,7 +496,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     );
   }
 
-  Widget _buildNativeIosTabBar(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton) {
+  Widget _buildNativeIosTabBar(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton, String brightness) {
     final nativeViewKey = ValueKey<int>(
       Object.hash(
         widget.showLabels,
@@ -503,6 +509,9 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
         widget.iosItemPositioning,
         widget.iosItemSpacing,
         widget.iosItemWidth,
+        // Recreate the platform view when the app theme flips so the native
+        // bar picks up the new brightness via creationParams.
+        brightness,
       ),
     );
 
@@ -512,7 +521,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
       child: UiKitView(
         key: nativeViewKey,
         viewType: 'liquid-glass-tab-bar-view',
-        creationParams: _creationParamsCached(resolvedWidth, nativeTabs, nativeActionButton),
+        creationParams: _creationParamsCached(resolvedWidth, nativeTabs, nativeActionButton, brightness),
         creationParamsCodec: const StandardMessageCodec(),
         onPlatformViewCreated: _onNativePlatformViewCreated,
         gestureRecognizers: _tabBarGestureRecognizers,

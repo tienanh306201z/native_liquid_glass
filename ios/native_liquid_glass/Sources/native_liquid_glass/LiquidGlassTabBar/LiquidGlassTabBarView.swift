@@ -37,6 +37,21 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     isOpaque = false
     layer.isOpaque = false
     configureTabBarController(with: config)
+    applyUserInterfaceStyle()
+  }
+
+  /// Pins the bar to the Flutter app's brightness.
+  ///
+  /// `overrideUserInterfaceStyle` is a persistent property, but Flutter
+  /// navigation push/pop detaches and reattaches the platform view, which
+  /// makes UIKit re-resolve dynamic colors (background, labels, template icon
+  /// tints) against the *device* appearance — the "colors invert when I
+  /// navigate back" symptom. Setting it on the controller (which cascades to
+  /// the tab bar) and re-asserting it on reattach keeps the appearance stable.
+  private func applyUserInterfaceStyle() {
+    let style = config.userInterfaceStyle
+    tabBarController.overrideUserInterfaceStyle = style
+    overrideUserInterfaceStyle = style
   }
 
   required init?(coder: NSCoder) {
@@ -67,6 +82,9 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
       return
     }
 
+    // Reattachment (e.g. Flutter pop) can let UIKit re-resolve appearance
+    // against the device style; re-assert the locked style first.
+    applyUserInterfaceStyle()
     applyTintColorForSelectedIndex(
       tabBarController.selectedIndex,
       tabBar: tabBarController.tabBar

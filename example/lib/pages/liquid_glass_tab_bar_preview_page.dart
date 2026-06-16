@@ -154,6 +154,28 @@ class _LiquidGlassTabBarPreviewPageState extends State<LiquidGlassTabBarPreviewP
                               },
                               child: const Text('Show Dialog'),
                             ),
+                            const SizedBox(height: 12),
+                            // Repro for the "colors invert after navigation" bug:
+                            // push a full Flutter route, then pop back and check
+                            // the tab bar keeps the colors of the current theme.
+                            FilledButton.tonal(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (context) => const _PushedFlutterScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text('Push a Flutter screen, then come back'),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tip: toggle the theme (top-right), then push & pop, and tap '
+                              'between tabs. The tab bar should keep the current '
+                              "theme's colors and never invert.",
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           ],
                         ),
                       ),
@@ -349,6 +371,41 @@ class _LiquidGlassTabBarPreviewPageState extends State<LiquidGlassTabBarPreviewP
           iosItemPositioning: _positioning,
           iosItemSpacing: _positioning == LiquidGlassTabBarItemPositioning.centered ? 24 : null,
           iosItemWidth: _positioning == LiquidGlassTabBarItemPositioning.centered ? 72 : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// A plain pushed route used to reproduce the navigation round-trip.
+///
+/// Popping back to the tab bar page is the moment the native `UITabBar` used
+/// to re-resolve its colors against the device appearance and invert.
+class _PushedFlutterScreen extends StatelessWidget {
+  const _PushedFlutterScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pushed Flutter screen')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Now go back. The tab bar on the previous screen should keep '
+                "the current theme's colors and not invert.",
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Go back to the tab bar'),
+              ),
+            ],
+          ),
         ),
       ),
     );

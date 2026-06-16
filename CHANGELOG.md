@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.9
+
+### Tab bar — fix colors inverting with device appearance
+
+- **`LiquidGlassTabBar` now follows the Flutter app theme, not the device appearance.** The native `UITabBar` previously inherited the device's Dark/Light `userInterfaceStyle`, so its background, labels, and template-tinted icons inverted whenever the device appearance differed from the app theme — most visibly after navigating to another Flutter screen and back, on tab selection, or when the system toggled Dark Mode. The widget now mirrors `Theme.of(context).brightness` to the native view's `overrideUserInterfaceStyle` and re-asserts it on reattach (`didMoveToWindow`), keeping the bar's colors stable across navigation, tab taps, and appearance changes.
+
 ## 0.2.8
 
 ### Swift Package Manager fix

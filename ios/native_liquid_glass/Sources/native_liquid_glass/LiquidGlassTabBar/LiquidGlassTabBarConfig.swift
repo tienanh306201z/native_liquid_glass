@@ -309,6 +309,9 @@ struct LiquidGlassTabBarConfig {
   let itemSpacing: CGFloat?
   let itemWidth: CGFloat?
   let glassOverflow: CGFloat
+  /// Interface style the native bar should lock to, mirrored from the Flutter
+  /// app's theme brightness. `.unspecified` means follow the system (device).
+  let userInterfaceStyle: UIUserInterfaceStyle
 
   private static func decodeData(from value: Any?) -> Data? {
     if let typedData = value as? FlutterStandardTypedData {
@@ -455,6 +458,18 @@ struct LiquidGlassTabBarConfig {
       glassOverflow = CGFloat(overflow)
     } else {
       glassOverflow = 0
+    }
+
+    // Pin the native bar to the Flutter app's brightness so its background,
+    // labels, and template-tinted icons stop following the device appearance
+    // (which causes the "colors invert in Dark Mode" symptom).
+    switch args?["brightness"] as? String {
+    case "dark":
+      userInterfaceStyle = .dark
+    case "light":
+      userInterfaceStyle = .light
+    default:
+      userInterfaceStyle = .unspecified
     }
   }
 }

@@ -55,7 +55,7 @@ class _LiquidGlassTabBarPreviewPageState extends State<LiquidGlassTabBarPreviewP
         selectedIcon: const NativeLiquidGlassIcon.sfSymbol('bookmark.fill'),
         iosBadgeValue: '3',
         iosBadgeColor: _useBadgeColor ? const Color(0xFF007AFF) : null,
-        iosBadgeTextColor: _useBadgeColor ? Colors.white : null,
+        iosBadgeTextColor: _useBadgeColor ? Colors.black87 : null,
         iconSize: _iconSize,
         selectedItemColor: _selectedColorForItem(2),
       ),

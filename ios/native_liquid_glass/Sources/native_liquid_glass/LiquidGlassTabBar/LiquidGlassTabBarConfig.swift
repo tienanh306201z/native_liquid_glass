@@ -313,6 +313,29 @@ struct LiquidGlassTabBarConfig {
   /// app's theme brightness. `.unspecified` means follow the system (device).
   let userInterfaceStyle: UIUserInterfaceStyle
 
+  /// All badge-bearing items in declaration order (tabs first, then the
+  /// optional trailing action button).
+  private var badgeableItems: [TabItem] {
+    actionButton.map { tabs + [$0] } ?? tabs
+  }
+
+  /// Badge background color applied to the bar-global `UITabBarAppearance`.
+  ///
+  /// On the iOS 18+ appearance-driven ("Liquid Glass") render path UIKit
+  /// ignores the per-item `UITabBarItem.badgeColor`, so badge styling must be
+  /// resolved from the appearance. The appearance is bar-global, so the first
+  /// item that defines a badge color wins; `nil` means "leave the system
+  /// default" (red background).
+  var resolvedBadgeColor: UIColor? {
+    badgeableItems.compactMap { $0.badgeColor }.first
+  }
+
+  /// Badge text color applied to the bar-global `UITabBarAppearance`.
+  /// `nil` means "leave the system default" (white text).
+  var resolvedBadgeTextColor: UIColor? {
+    badgeableItems.compactMap { $0.badgeTextColor }.first
+  }
+
   private static func decodeData(from value: Any?) -> Data? {
     if let typedData = value as? FlutterStandardTypedData {
       return typedData.data

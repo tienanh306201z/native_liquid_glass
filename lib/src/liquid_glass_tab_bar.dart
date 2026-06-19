@@ -79,9 +79,13 @@ class LiquidGlassTabItem {
   final bool iosShowBadge;
 
   /// Badge background color. Defaults to red when null.
+  /// On iOS the badge appearance is bar-global, so if multiple items set this
+  /// the first declared item's color is applied to all badges.
   final Color? iosBadgeColor;
 
   /// Badge text color when [iosBadgeValue] is set. Defaults to white when null.
+  /// As with [iosBadgeColor], this is bar-global on iOS (first declared item
+  /// with a value wins).
   final Color? iosBadgeTextColor;
 
   /// Optional icon size override for this tab item on iOS.

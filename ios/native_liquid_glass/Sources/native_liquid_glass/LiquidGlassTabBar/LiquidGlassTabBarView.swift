@@ -484,6 +484,40 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     applyTintColorForSelectedIndex(clampedIndex, tabBar: tabBarController.tabBar)
   }
 
+  /// Updates only the badge values on the existing tab items, without
+  /// rebuilding the native controller. Badge order matches the view
+  /// controllers: tabs first, then the optional trailing action button.
+  ///
+  /// Mirrors the creation-time convention in `LiquidGlassTabBarConfig`: a
+  /// non-empty string shows a text badge, an empty string shows a dot badge,
+  /// and `nil` clears the badge. Badge *colors* are intentionally not updated
+  /// here — they are baked into the bar-global appearance at creation.
+  func updateBadges(_ badges: [[String: Any]]) {
+    guard let viewControllers = tabBarController.viewControllers else {
+      return
+    }
+
+    for (index, badge) in badges.enumerated() {
+      guard index < viewControllers.count else {
+        break
+      }
+
+      let rawValue = badge["badgeValue"] as? String
+      let showBadge = badge["showBadge"] as? Bool ?? false
+
+      let resolvedValue: String?
+      if let rawValue, !rawValue.isEmpty {
+        resolvedValue = rawValue
+      } else if showBadge {
+        resolvedValue = ""
+      } else {
+        resolvedValue = nil
+      }
+
+      viewControllers[index].tabBarItem?.badgeValue = resolvedValue
+    }
+  }
+
   func tabBarController(
     _ tabBarController: UITabBarController, shouldSelect viewController: UIViewController
   ) -> Bool {
@@ -674,6 +708,11 @@ final class LiquidGlassTabBarPlatformView: NSObject, FlutterPlatformView {
       }
 
       nativeTabBarControllerView?.setSelectedIndex(index)
+      result(nil)
+
+    case "updateBadges":
+      let rawBadges = call.arguments as? [[String: Any]] ?? []
+      nativeTabBarControllerView?.updateBadges(rawBadges)
       result(nil)
 
     case "setSuppressed":

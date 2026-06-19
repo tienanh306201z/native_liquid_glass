@@ -79,9 +79,13 @@ class LiquidGlassTabItem {
   final bool iosShowBadge;
 
   /// Badge background color. Defaults to red when null.
+  /// On iOS the badge appearance is bar-global, so if multiple items set this
+  /// the first declared item's color is applied to all badges.
   final Color? iosBadgeColor;
 
   /// Badge text color when [iosBadgeValue] is set. Defaults to white when null.
+  /// As with [iosBadgeColor], this is bar-global on iOS (first declared item
+  /// with a value wins).
   final Color? iosBadgeTextColor;
 
   /// Optional icon size override for this tab item on iOS.
@@ -119,6 +123,24 @@ class LiquidGlassTabItem {
     iconSize,
     selectedItemColor?.toARGB32(),
   );
+
+  /// Signature of everything that requires *recreating* the native platform
+  /// view when it changes: icons, labels, sizing, and badge *colors* (which are
+  /// baked into the bar-global `UITabBarAppearance`). Deliberately excludes the
+  /// badge value/visibility so a changing badge count can be pushed to the live
+  /// view instead of forcing a teardown + rebuild (which flickers).
+  int get structuralSignature => Object.hash(
+    label,
+    icon.nativeSignature,
+    selectedIcon?.nativeSignature,
+    iosBadgeColor?.toARGB32(),
+    iosBadgeTextColor?.toARGB32(),
+    iconSize,
+    selectedItemColor?.toARGB32(),
+  );
+
+  /// Signature of the live-updatable badge state (value + dot visibility).
+  int get badgeSignature => Object.hash(iosBadgeValue, iosShowBadge);
 }
 
 /// A bottom tab bar with a Liquid Glass background.
@@ -216,14 +238,17 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
 
   int _nativeTabsVersion = 0;
   int _nativePayloadRequestId = 0;
-  int _itemsSignature = 0;
+  int _itemsStructuralSignature = 0;
+  int _badgeSignature = 0;
   Map<String, Object?>? _cachedCreationParams;
   int? _creationParamsCacheKey;
 
   @override
   void initState() {
     super.initState();
-    _itemsSignature = _computeItemsSignature(widget.items, widget.iosActionButton);
+    _itemsStructuralSignature =
+        _computeStructuralSignature(widget.items, widget.iosActionButton);
+    _badgeSignature = _computeBadgeSignature(widget.items, widget.iosActionButton);
     _prepareNativeTabsPayloads();
   }
 
@@ -231,10 +256,22 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
   void didUpdateWidget(covariant LiquidGlassTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final newSignature = _computeItemsSignature(widget.items, widget.iosActionButton);
-    if (newSignature != _itemsSignature) {
-      _itemsSignature = newSignature;
+    final newStructural =
+        _computeStructuralSignature(widget.items, widget.iosActionButton);
+    if (newStructural != _itemsStructuralSignature) {
+      // Icons / labels / sizing / badge colors changed: the native view must be
+      // rebuilt (new key + fresh creationParams).
+      _itemsStructuralSignature = newStructural;
+      _badgeSignature = _computeBadgeSignature(widget.items, widget.iosActionButton);
       _prepareNativeTabsPayloads();
+    } else {
+      final newBadge = _computeBadgeSignature(widget.items, widget.iosActionButton);
+      if (newBadge != _badgeSignature) {
+        // Only the badge value/visibility changed: push it to the live native
+        // view instead of recreating it (which would flicker).
+        _badgeSignature = newBadge;
+        _pushBadgeUpdate();
+      }
     }
 
     if (oldWidget.currentIndex != widget.currentIndex) {
@@ -463,8 +500,76 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     };
   }
 
-  int _computeItemsSignature(List<LiquidGlassTabItem> items, LiquidGlassTabItem? iosActionButton) {
-    return Object.hashAll([...items.map((item) => item.nativeSignature), iosActionButton?.nativeSignature]);
+  int _computeStructuralSignature(
+      List<LiquidGlassTabItem> items, LiquidGlassTabItem? iosActionButton) {
+    return Object.hashAll([
+      ...items.map((item) => item.structuralSignature),
+      iosActionButton?.structuralSignature,
+    ]);
+  }
+
+  int _computeBadgeSignature(
+      List<LiquidGlassTabItem> items, LiquidGlassTabItem? iosActionButton) {
+    return Object.hashAll([
+      ...items.map((item) => item.badgeSignature),
+      iosActionButton?.badgeSignature,
+    ]);
+  }
+
+  /// Pushes the current badge values to the live native view (no platform-view
+  /// recreation) and keeps the cached creation payload in sync so a *later*
+  /// structural rebuild carries the current values.
+  void _pushBadgeUpdate() {
+    _applyBadgesToCachedTabs();
+
+    final badges = <Map<String, Object?>>[
+      for (final item in widget.items) _badgePayload(item),
+      if (widget.iosActionButton != null) _badgePayload(widget.iosActionButton!),
+    ];
+    unawaited(_invokeUpdateBadges(badges));
+  }
+
+  Map<String, Object?> _badgePayload(LiquidGlassTabItem item) => <String, Object?>{
+        'badgeValue': item.iosBadgeValue,
+        'showBadge': item.iosShowBadge || item.iosBadgeValue != null,
+      };
+
+  /// Mutates the cached native-tab payload so a *later* platform-view
+  /// recreation (e.g. a brightness flip) carries the current badge values
+  /// instead of the ones captured when the payload was last built.
+  void _applyBadgesToCachedTabs() {
+    final tabs = _nativeTabs;
+    if (tabs != null) {
+      for (var i = 0; i < tabs.length && i < widget.items.length; i++) {
+        final payload = _badgePayload(widget.items[i]);
+        tabs[i]['badgeValue'] = payload['badgeValue'];
+        tabs[i]['showBadge'] = payload['showBadge'];
+      }
+    }
+
+    final actionButton = widget.iosActionButton;
+    final cachedAction = _nativeActionButton;
+    if (actionButton != null && cachedAction != null) {
+      final payload = _badgePayload(actionButton);
+      cachedAction['badgeValue'] = payload['badgeValue'];
+      cachedAction['showBadge'] = payload['showBadge'];
+    }
+
+    // The payload maps were mutated in place (identity unchanged), so force the
+    // creation-params cache to rebuild from them on the next view creation.
+    _creationParamsCacheKey = null;
+  }
+
+  Future<void> _invokeUpdateBadges(List<Map<String, Object?>> badges) async {
+    final channel = _nativeChannel;
+    if (channel == null) {
+      return;
+    }
+    try {
+      await channel.invokeMethod<void>('updateBadges', badges);
+    } catch (_) {
+      // Ignore update failures so badge changes never crash Flutter.
+    }
   }
 
   double _resolveWidth(BuildContext context, BoxConstraints constraints) {
@@ -502,7 +607,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
       Object.hash(
         widget.showLabels,
         widget.items.length,
-        widget.iosActionButton?.nativeSignature,
+        widget.iosActionButton?.structuralSignature,
         _nativeTabsVersion,
         widget.iconSize,
         _labelStyleSignature(widget.labelTextStyle),

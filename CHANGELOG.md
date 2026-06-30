@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.12
+
+### Tab bar — update badge values live instead of recreating the view
+
+- Changing a badge value (e.g. a cart/wishlist count going 1 → 2 → 3) no longer tears down and recreates the native tab bar, removing the flicker. Badge value/visibility changes are now pushed to the live view over the method channel; only structural changes (icon/label/size/badge colors) still recreate the view.
+
 ## 0.2.11
 
 ### Tab bar — fix badge colors being ignored on iOS

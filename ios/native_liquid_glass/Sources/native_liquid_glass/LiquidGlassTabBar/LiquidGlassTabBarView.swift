@@ -328,7 +328,14 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   private func makeTabBarAppearanceIfNeeded(from config: LiquidGlassTabBarConfig)
     -> UITabBarAppearance?
   {
-    guard config.selectedItemColor != nil || config.labelStyle != nil else {
+    let badgeColor = config.resolvedBadgeColor
+    let badgeTextColor = config.resolvedBadgeTextColor
+
+    // Badge colors must be carried by the appearance because UIKit ignores the
+    // per-item `UITabBarItem.badgeColor` on the iOS 18+ appearance-driven path.
+    guard config.selectedItemColor != nil || config.labelStyle != nil
+      || badgeColor != nil || badgeTextColor != nil
+    else {
       return nil
     }
 
@@ -340,17 +347,23 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     applyItemAppearance(
       to: appearance.stackedLayoutAppearance,
       selectedColor: config.selectedItemColor,
-      labelStyle: config.labelStyle
+      labelStyle: config.labelStyle,
+      badgeColor: badgeColor,
+      badgeTextColor: badgeTextColor
     )
     applyItemAppearance(
       to: appearance.inlineLayoutAppearance,
       selectedColor: config.selectedItemColor,
-      labelStyle: config.labelStyle
+      labelStyle: config.labelStyle,
+      badgeColor: badgeColor,
+      badgeTextColor: badgeTextColor
     )
     applyItemAppearance(
       to: appearance.compactInlineLayoutAppearance,
       selectedColor: config.selectedItemColor,
-      labelStyle: config.labelStyle
+      labelStyle: config.labelStyle,
+      badgeColor: badgeColor,
+      badgeTextColor: badgeTextColor
     )
 
     return appearance
@@ -496,12 +509,24 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     onTabSelected(index)
   }
 
-  /// Applies selected icon/title colors to one tab bar item appearance style.
+  /// Applies selected icon/title colors and badge colors to one tab bar item
+  /// appearance style.
   private func applyItemAppearance(
     to appearance: UITabBarItemAppearance,
     selectedColor: UIColor?,
-    labelStyle: LiquidGlassTabBarConfig.LabelStyle?
+    labelStyle: LiquidGlassTabBarConfig.LabelStyle?,
+    badgeColor: UIColor?,
+    badgeTextColor: UIColor?
   ) {
+    applyBadgeAppearance(
+      to: appearance.normal, badgeColor: badgeColor, badgeTextColor: badgeTextColor)
+    applyBadgeAppearance(
+      to: appearance.selected, badgeColor: badgeColor, badgeTextColor: badgeTextColor)
+    if #available(iOS 15.0, *) {
+      applyBadgeAppearance(
+        to: appearance.focused, badgeColor: badgeColor, badgeTextColor: badgeTextColor)
+    }
+
     var normalAttributes = appearance.normal.titleTextAttributes
     var selectedAttributes = appearance.selected.titleTextAttributes
 
@@ -535,6 +560,22 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
         focusedAttributes[.foregroundColor] = selectedColor
         appearance.focused.titleTextAttributes = focusedAttributes
       }
+    }
+  }
+
+  /// Applies badge background/text colors to a single tab bar item state
+  /// appearance. Unset colors are left untouched so UIKit keeps its system
+  /// defaults (red background, white text).
+  private func applyBadgeAppearance(
+    to stateAppearance: UITabBarItemStateAppearance,
+    badgeColor: UIColor?,
+    badgeTextColor: UIColor?
+  ) {
+    if let badgeColor {
+      stateAppearance.badgeBackgroundColor = badgeColor
+    }
+    if let badgeTextColor {
+      stateAppearance.badgeTextAttributes = [.foregroundColor: badgeTextColor]
     }
   }
 }

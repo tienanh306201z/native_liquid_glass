@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.11
+
+### Tab bar — fix badge colors being ignored on iOS
+
+- `iosBadgeColor` and `iosBadgeTextColor` now apply on iOS 18+. They were previously dropped on the modern tab bar; when unset, the system red/white defaults are kept.
+- Note: the badge color is shared across the bar, so if multiple items set one, the first item's color is used for all badges.
+
 ## 0.2.10
 
 ### Cross-widget performance & correctness pass

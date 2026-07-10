@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.13
+
+### Tab bar — restore the split `iosActionButton` on iOS 27
+
+- On iOS 27 the action button was merged into the main tab bar as a regular item. iOS 27 removed UIKit's automatic separation of the legacy `.search` system item; the detached look is now opt-in via `UITabBarController.prominentTabIdentifier`.
+- The tab bar is now built with the `UITab` API on iOS 26+: regular tabs become `UITab`s and the action button becomes a `UISearchTab` (which iOS 26 renders detached); on iOS 27 the action tab is additionally marked as the prominent tab.
+- Apps built with Xcode 26 still get the split when running on iOS 27: the prominent-tab setter is reached dynamically when the SDK is older than iOS 27 (`#if compiler(>=6.4)` guards the direct call).
+- iOS 18 and below keep the previous `UITabBarItem`-based construction unchanged.
+
 ## 0.2.12
 
 ### Tab bar — update badge values live instead of recreating the view

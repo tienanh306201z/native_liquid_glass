@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.14
+
+### Tab bar — fix compilation against pre-iOS 26.1 SDKs
+
+- `UITab.selectedImage` and `UISearchTab.selectedImage` only exist in the iOS 26.1 SDK. They were guarded with a runtime `#available(iOS 26.1, *)` check, which gates execution but **not** compilation, so the plugin failed to build on any Xcode shipping an older SDK (missing-symbol error).
+- The selected image is now applied via KVC (`setValue(_:forKey: "selectedImage")`) under the same availability guard — it compiles against any SDK and still applies the selected image at runtime on iOS 26.1+, matching the dynamic-fallback pattern already used for `prominentTabIdentifier`.
+- Thanks to [@WudgeJalk](https://github.com/WudgeJalk) for the report and fix ([#7](https://github.com/tienanh306201z/native_liquid_glass/issues/7), [#8](https://github.com/tienanh306201z/native_liquid_glass/pull/8)).
+
 ## 0.2.13
 
 ### Tab bar — restore the split `iosActionButton` on iOS 27

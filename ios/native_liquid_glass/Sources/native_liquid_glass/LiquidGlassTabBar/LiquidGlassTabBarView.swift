@@ -255,7 +255,15 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     }
 
     if #available(iOS 26.1, *) {
-      uiTab.selectedImage = tab.image(forSelectedState: true, iconSize: config.iconSize)
+      // `UITab.selectedImage` only exists in the iOS 26.1 SDK. Referencing it
+      // directly fails to COMPILE against older SDKs (the runtime #available
+      // check does not gate compilation). KVC avoids the compile-time symbol
+      // while still applying the image at runtime on iOS 26.1+ — same
+      // dynamic-fallback pattern as `prominentTabIdentifier` below.
+      uiTab.setValue(
+        tab.image(forSelectedState: true, iconSize: config.iconSize),
+        forKey: "selectedImage"
+      )
     }
     uiTab.badgeValue = tab.badgeValue
     return uiTab
@@ -282,7 +290,9 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     if #available(iOS 26.1, *),
       let selectedImage = actionButton.image(forSelectedState: true, iconSize: config.iconSize)
     {
-      searchTab.selectedImage = selectedImage
+      // KVC instead of `UISearchTab.selectedImage`: the property only exists
+      // in the iOS 26.1 SDK and would break compilation on older toolchains.
+      searchTab.setValue(selectedImage, forKey: "selectedImage")
     }
     searchTab.badgeValue = actionButton.badgeValue
     return searchTab

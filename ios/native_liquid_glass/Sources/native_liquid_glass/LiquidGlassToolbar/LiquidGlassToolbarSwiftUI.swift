@@ -293,39 +293,52 @@ struct LiquidGlassToolbarSwiftUIView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      // Deliberately no `GlassEffectContainer` wrapper: each
-      // `ToolbarGroupCapsule` renders its own `.glassEffect(...)`
-      // independently, and the toolbar doesn't participate in
-      // `glassEffectUnion(id:)` / `glassEffectID(_:)`. Wrapping all
-      // capsules in a single `GlassEffectContainer(spacing: 0)` made
-      // Apple's Liquid Glass merge pipeline collapse multiple sibling
-      // capsule shapes into one fused material, which visually clipped
-      // the leading capsule's pill out of the composite when groups
-      // were separated by a `Spacer`.
-      HStack(spacing: 0) {
-        ForEach(splitIntoGroups(viewModel.items)) { group in
-          switch group {
-          case .flexibleSpacer:
-            Spacer(minLength: 0)
-          case .fixedSpacer(_, let width):
-            Spacer().frame(width: width)
-          case .items(_, let groupItems):
-            ToolbarGroupCapsule(
-              items: groupItems,
-              iconSymbolWeight: viewModel.iconSymbolWeight,
-              labelStyle: viewModel.labelStyle,
-              itemSpacing: viewModel.itemSpacing,
-              capsulePadding: viewModel.capsulePadding,
-              capsuleHeight: geometry.size.height,
-              borderColor: viewModel.capsuleBorderColor,
-              borderWidth: viewModel.capsuleBorderWidth,
-              onItemTapped: { id in viewModel.onItemTapped?(id) }
-            )
-          }
+      // A platform view is created before Flutter has committed its final
+      // layout, so the first geometry pass can run at a zero / degenerate
+      // size. `capsuleHeight` is fed straight from `geometry.size.height`,
+      // so drawing at that point produces zero-height capsules that read
+      // as a clipped bar until layout settles. Skip the draw until the
+      // size is usable — same guard as `LiquidGlassContainerSwiftUIView`.
+      if geometry.size.width > 0, geometry.size.height > 0 {
+        toolbarBody(in: geometry.size)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func toolbarBody(in size: CGSize) -> some View {
+    // Deliberately no `GlassEffectContainer` wrapper: each
+    // `ToolbarGroupCapsule` renders its own `.glassEffect(...)`
+    // independently, and the toolbar doesn't participate in
+    // `glassEffectUnion(id:)` / `glassEffectID(_:)`. Wrapping all
+    // capsules in a single `GlassEffectContainer(spacing: 0)` made
+    // Apple's Liquid Glass merge pipeline collapse multiple sibling
+    // capsule shapes into one fused material, which visually clipped
+    // the leading capsule's pill out of the composite when groups
+    // were separated by a `Spacer`.
+    HStack(spacing: 0) {
+      ForEach(splitIntoGroups(viewModel.items)) { group in
+        switch group {
+        case .flexibleSpacer:
+          Spacer(minLength: 0)
+        case .fixedSpacer(_, let width):
+          Spacer().frame(width: width)
+        case .items(_, let groupItems):
+          ToolbarGroupCapsule(
+            items: groupItems,
+            iconSymbolWeight: viewModel.iconSymbolWeight,
+            labelStyle: viewModel.labelStyle,
+            itemSpacing: viewModel.itemSpacing,
+            capsulePadding: viewModel.capsulePadding,
+            capsuleHeight: size.height,
+            borderColor: viewModel.capsuleBorderColor,
+            borderWidth: viewModel.capsuleBorderWidth,
+            onItemTapped: { id in viewModel.onItemTapped?(id) }
+          )
         }
       }
-      .frame(width: geometry.size.width, height: geometry.size.height)
     }
+    .frame(width: size.width, height: size.height)
   }
 }
 

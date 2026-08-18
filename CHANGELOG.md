@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.15
+
+### Container & toolbar — no more mis-shaped first frame
+
+- `LiquidGlassContainer` and `LiquidGlassToolbar` no longer draw the glass material while their platform view still has a zero / degenerate size. A platform view is created before Flutter has committed its final layout, so the first geometry pass could bake a wrong corner radius into the shape — `capsule` and `circle` derive it from `min(w, h) / 2`, so the pill rendered square-cornered or clipped until layout settled. This was visible as an incompletely rendered button during bottom-sheet presentation and page transitions ([#9](https://github.com/tienanh306201z/native_liquid_glass/issues/9)). The draw is now skipped until the size is usable: a transparent frame instead of a mis-shaped one.
+
+### `LiquidGlassMenu` — documented as single trigger per screen
+
+- Documented that the widget is meant for **one trigger per screen**. Multiple instances (e.g. one per `ListView` row) are not supported — the conflict sits below the widget tree, so Dart-side state cannot work around it. For per-row menus, use `PopupMenuButton` or `CupertinoContextMenu`.
+
+### Docs
+
+- `LiquidGlassMenu`'s docstring no longer claims it applies Liquid Glass effects. The trigger is a plain system `UIButton`; the glass appearance belongs to the system menu popup that UIKit presents in its own window.
+- Corrected the same docstring's claim that non-iOS platforms fall back to `PopupMenuButton` — they render an empty `SizedBox`.
+- Documented that overlay suppression only covers transitions that push a route. Switching tabs with an `IndexedStack` / `TabBarView` stays on the same route, so the automatic path doesn't fire and the glass can flash a flat dark tone for a frame; the README now shows how to wrap those transitions with `NativeLiquidGlassLifecycle` ([#9](https://github.com/tienanh306201z/native_liquid_glass/issues/9)).
+
 ## 0.2.14
 
 ### Tab bar — fix compilation against pre-iOS 26.1 SDKs

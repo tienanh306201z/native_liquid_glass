@@ -53,11 +53,26 @@ class LiquidGlassMenuItem {
   }
 }
 
-/// A native iOS context menu using UIButton + UIMenu with Liquid Glass effects
-/// on iOS 26+.
+/// A native iOS context menu using `UIButton` + `UIMenu`.
 ///
-/// Renders an inline button that shows a native UIMenu on long-press or tap.
-/// On non-iOS platforms, falls back to [PopupMenuButton].
+/// Renders an inline trigger button that shows a native `UIMenu` on tap or
+/// long-press. The trigger itself is a plain system `UIButton` — it applies
+/// no glass material; the Liquid Glass appearance you see on iOS 26+ belongs
+/// to the system menu popup, which UIKit renders in its own window.
+///
+/// On non-iOS platforms this renders an empty [SizedBox]. There is no
+/// Flutter fallback — use [PopupMenuButton] directly if you need one.
+///
+/// ## Known limitation — one trigger per screen
+///
+/// Multiple [LiquidGlassMenu] instances on the same screen (e.g. one per
+/// row of a `ListView`) interfere with each other: the native menu
+/// interaction competes with Flutter's gesture arena, so which trigger
+/// responds becomes unreliable. Dart-side state cannot work around this
+/// because the conflict sits below the widget tree. Use this widget for a
+/// single trigger on a navigation bar or toolbar; for per-row menus in a
+/// list, use [PopupMenuButton] or `CupertinoContextMenu`. See
+/// https://github.com/tienanh306201z/native_liquid_glass/issues/11
 class LiquidGlassMenu extends StatefulWidget {
   /// Menu items.
   final List<LiquidGlassMenuItem> items;

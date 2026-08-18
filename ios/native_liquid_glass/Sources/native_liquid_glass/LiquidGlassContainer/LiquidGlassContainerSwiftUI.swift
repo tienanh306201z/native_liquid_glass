@@ -318,40 +318,55 @@ struct LiquidGlassContainerSwiftUIView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      // Wrap in `GlassEffectContainer` so:
-      //   * `Glass.clear` renders with its proper translucent material
-      //     (without it, Apple's pipeline collapses to a frosted white
-      //     panel in light mode),
-      //   * `glassEffectUnion(id:)` and `glassEffectID(_:)` applied via
-      //     `applyLiquidGlassContainerModifiers` have the ancestor they
-      //     require to actually take effect,
-      //   * interactive glass gets the compositing context it needs.
-      GlassEffectContainer(spacing: 0) {
-        Group {
-          if viewModel.isCustom {
-            customGlassView(in: geometry.size)
-              .transition(.opacity)
-          } else {
-            builtInGlassView(in: geometry.size)
-              .transition(.opacity)
-          }
-        }
-        .applyLiquidGlassContainerModifiers(
-          unionId: viewModel.glassEffectUnionId,
-          id: viewModel.glassEffectId,
-          namespace: namespace
-        )
-        // Native press feedback. When the Flutter side forwards
-        // `setPressed`, `viewModel.isPressed` toggles inside a
-        // `withAnimation(.spring)` block — CoreAnimation drives the
-        // scale with no per-frame Flutter work. Scales up on press
-        // (not down) to mirror Apple's `.interactive()` spring-out
-        // aesthetic. At rest this is the identity transform, so it
-        // costs nothing on non-interactive containers.
-        .scaleEffect(viewModel.isPressed ? 1.04 : 1.0)
+      // A platform view is created before Flutter has committed its final
+      // layout, so the first geometry pass can run at a zero / degenerate
+      // size. Drawing at that point bakes a wrong corner radius into the
+      // shape — `capsule` and `circle` derive it from `min(w, h) / 2`, so
+      // the pill renders square-cornered or clipped until layout settles.
+      // That's the flash reported during bottom-sheet presentation and
+      // page transitions. Skip the draw until the size is usable: an
+      // empty frame is imperceptible, a mis-shaped one is not.
+      if geometry.size.width > 0, geometry.size.height > 0 {
+        glassBody(in: geometry.size)
       }
-      .frame(width: geometry.size.width, height: geometry.size.height)
     }
+  }
+
+  @ViewBuilder
+  private func glassBody(in size: CGSize) -> some View {
+    // Wrap in `GlassEffectContainer` so:
+    //   * `Glass.clear` renders with its proper translucent material
+    //     (without it, Apple's pipeline collapses to a frosted white
+    //     panel in light mode),
+    //   * `glassEffectUnion(id:)` and `glassEffectID(_:)` applied via
+    //     `applyLiquidGlassContainerModifiers` have the ancestor they
+    //     require to actually take effect,
+    //   * interactive glass gets the compositing context it needs.
+    GlassEffectContainer(spacing: 0) {
+      Group {
+        if viewModel.isCustom {
+          customGlassView(in: size)
+            .transition(.opacity)
+        } else {
+          builtInGlassView(in: size)
+            .transition(.opacity)
+        }
+      }
+      .applyLiquidGlassContainerModifiers(
+        unionId: viewModel.glassEffectUnionId,
+        id: viewModel.glassEffectId,
+        namespace: namespace
+      )
+      // Native press feedback. When the Flutter side forwards
+      // `setPressed`, `viewModel.isPressed` toggles inside a
+      // `withAnimation(.spring)` block — CoreAnimation drives the
+      // scale with no per-frame Flutter work. Scales up on press
+      // (not down) to mirror Apple's `.interactive()` spring-out
+      // aesthetic. At rest this is the identity transform, so it
+      // costs nothing on non-interactive containers.
+      .scaleEffect(viewModel.isPressed ? 1.04 : 1.0)
+    }
+    .frame(width: size.width, height: size.height)
   }
 
   // MARK: Built-in

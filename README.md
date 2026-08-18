@@ -304,6 +304,8 @@ LiquidGlassMenu(
 )
 ```
 
+The trigger is a plain system `UIButton`; the Liquid Glass look belongs to the system menu popup that UIKit presents. Use **one trigger per screen** — multiple instances (e.g. one per `ListView` row) interfere with each other, because the native menu interaction competes with Flutter's gesture arena ([#11](https://github.com/tienanh306201z/native_liquid_glass/issues/11)). For per-row menus, use `PopupMenuButton` or `CupertinoContextMenu`.
+
 ### Modals
 
 ```dart
@@ -346,6 +348,23 @@ NativeLiquidGlassLifecycle.suppressGlassEffects();
 await showMyCustomOverlay();
 NativeLiquidGlassLifecycle.unsuppressGlassEffects();
 ```
+
+### Transitions that don't push a route
+
+The automatic path keys off `ModalRoute.of(context).isCurrent`, so it covers route pushes and popup routes — but **not** transitions that happen inside a single route. Switching tabs with an `IndexedStack` or a `TabBarView` keeps the same route, so nothing fires, and the glass material can flash a flat dark tone for a frame: it samples the content behind it, and mid-transition Flutter's surface isn't readable.
+
+Wrap those transitions manually:
+
+```dart
+void _onTabChanged(int index) async {
+  await NativeLiquidGlassLifecycle.suppressGlassEffects();
+  setState(() => _index = index);
+  await Future<void>.delayed(_transitionDuration);
+  await NativeLiquidGlassLifecycle.unsuppressGlassEffects();
+}
+```
+
+This trades the flash for a fade, which reads far better but does not eliminate the underlying limitation — the glass is a real `UIView` composited above Flutter's Metal layer, and the plugin cannot control what that layer exposes mid-transition.
 
 ## Device qualification check
 

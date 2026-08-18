@@ -128,7 +128,14 @@ void main() {
     expect(find.text('Search'), findsNothing);
   });
 
-  testWidgets('liquid glass button renders fallback and handles taps', (tester) async {
+  // The widgets in this package render native platform views and have no
+  // Flutter fallback: off iOS 26+ they return an empty `SizedBox`. The
+  // tests below pin that contract down, because it's easy to reintroduce a
+  // fallback by accident and easy to document one that doesn't exist —
+  // both docstrings claiming a `PopupMenuButton` / `FilledButton` fallback
+  // have been wrong at some point in this package's history.
+
+  testWidgets('liquid glass button renders nothing on non-iOS', (tester) async {
     var tapCount = 0;
 
     await tester.pumpWidget(
@@ -147,15 +154,13 @@ void main() {
       ),
     );
 
-    expect(find.text('Continue'), findsOneWidget);
-
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-
-    expect(tapCount, 1);
+    expect(find.text('Continue'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byIcon(Icons.arrow_forward_rounded), findsNothing);
+    expect(tapCount, 0);
   });
 
-  testWidgets('liquid glass icon button renders fallback and handles taps', (tester) async {
+  testWidgets('liquid glass icon button renders nothing on non-iOS', (tester) async {
     var tapCount = 0;
 
     await tester.pumpWidget(
@@ -173,12 +178,37 @@ void main() {
       ),
     );
 
-    expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_border_rounded), findsNothing);
+    expect(find.byType(IconButton), findsNothing);
+    expect(tapCount, 0);
+  });
 
-    await tester.tap(find.byIcon(Icons.favorite_border_rounded));
-    await tester.pumpAndSettle();
+  testWidgets('liquid glass menu renders nothing on non-iOS', (tester) async {
+    var selectedCount = 0;
 
-    expect(tapCount, 1);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: LiquidGlassMenu(
+              label: 'Actions',
+              items: const [
+                LiquidGlassMenuItem(id: 'edit', title: 'Edit'),
+                LiquidGlassMenuItem(id: 'delete', title: 'Delete', isDestructive: true),
+              ],
+              onItemSelected: (_) {
+                selectedCount++;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // The docstring used to promise a `PopupMenuButton` fallback here.
+    expect(find.text('Actions'), findsNothing);
+    expect(find.byType(PopupMenuButton<dynamic>), findsNothing);
+    expect(selectedCount, 0);
   });
 
   test('liquid glass button accepts expanded icon and color parameters', () {
@@ -203,7 +233,7 @@ void main() {
     expect(button.height, isNull);
   });
 
-  testWidgets('liquid glass button wraps content size when width and height are omitted', (tester) async {
+  testWidgets('liquid glass button takes no layout space on non-iOS', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -215,73 +245,46 @@ void main() {
       ),
     );
 
-    final fallbackButtonFinder = find.byType(FilledButton);
-    expect(fallbackButtonFinder, findsOneWidget);
-
-    final fallbackButtonSize = tester.getSize(fallbackButtonFinder);
-    expect(fallbackButtonSize.width, lessThan(220));
-    expect(fallbackButtonSize.width, greaterThan(40));
-    expect(fallbackButtonSize.height, greaterThan(30));
+    // Without a fallback there is no intrinsic size to wrap; the widget
+    // must collapse rather than reserve space for a button that isn't
+    // there. `Align` gives it a loose constraint so a non-zero size here
+    // would mean something is actually being laid out.
+    expect(tester.getSize(find.byType(LiquidGlassButton)), Size.zero);
   });
 
-  testWidgets('liquid glass icon button supports SF Symbol only source', (tester) async {
-    var tapCount = 0;
+  test('liquid glass icon button retains an SF Symbol source', () {
+    const button = LiquidGlassButton.icon(
+      onPressed: null,
+      icon: NativeLiquidGlassIcon.sfSymbol('heart'),
+      iconColor: Color(0xFFFF375F),
+    );
 
+    expect(button.icon?.sfSymbolName, 'heart');
+    expect(button.icon?.iconDataValue, isNull);
+    expect(button.icon?.assetPath, isNull);
+    expect(button.iconColor, const Color(0xFFFF375F));
+  });
+
+  testWidgets('liquid glass button in its disabled state renders nothing', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: Center(
-            child: LiquidGlassButton.icon(
-              onPressed: () {
-                tapCount++;
-              },
-              icon: const NativeLiquidGlassIcon.sfSymbol('heart'),
-              iconColor: const Color(0xFFFF375F),
+            child: Column(
+              children: [
+                LiquidGlassButton(label: 'Continue', onPressed: null, icon: const NativeLiquidGlassIcon.iconData(Icons.arrow_forward_rounded)),
+                LiquidGlassButton.icon(onPressed: null, icon: const NativeLiquidGlassIcon.iconData(Icons.favorite_border_rounded)),
+              ],
             ),
           ),
         ),
       ),
     );
 
-    expect(find.byIcon(Icons.circle_outlined), findsOneWidget);
-
-    await tester.tap(find.byIcon(Icons.circle_outlined));
-    await tester.pumpAndSettle();
-
-    expect(tapCount, 1);
-  });
-
-  testWidgets('liquid glass button disabled state does not invoke callback', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: LiquidGlassButton(label: 'Continue', onPressed: null, icon: const NativeLiquidGlassIcon.iconData(Icons.arrow_forward_rounded)),
-          ),
-        ),
-      ),
-    );
-
-    final fallbackButton = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(fallbackButton.onPressed, isNull);
-
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('liquid glass icon button disabled state does not invoke callback', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(child: LiquidGlassButton.icon(onPressed: null, icon: const NativeLiquidGlassIcon.iconData(Icons.favorite_border_rounded))),
-        ),
-      ),
-    );
-
-    final fallbackIconButton = tester.widget<IconButton>(find.byType(IconButton));
-    expect(fallbackIconButton.onPressed, isNull);
-
-    await tester.tap(find.byIcon(Icons.favorite_border_rounded));
-    await tester.pumpAndSettle();
+    expect(find.text('Continue'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byType(IconButton), findsNothing);
+    expect(find.byIcon(Icons.arrow_forward_rounded), findsNothing);
+    expect(find.byIcon(Icons.favorite_border_rounded), findsNothing);
   });
 }

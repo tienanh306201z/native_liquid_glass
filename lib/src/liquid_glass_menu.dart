@@ -8,15 +8,24 @@ import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
 import 'utils/text_style_utils.dart';
 
-/// Tap-and-long-press gesture claim for the native menu's `UiKitView`.
+/// Tap gesture claim for the native menu's `UiKitView`.
 ///
-/// The menu trigger opens a native `UIMenu` on tap or long-press;
-/// declaring both recognizers up-front prevents Flutter's default lazy
-/// forwarding from swallowing or delaying those gestures.
+/// Declaring the recognizer up-front prevents Flutter's default lazy
+/// forwarding from swallowing or delaying the trigger gesture.
+///
+/// A `LongPressGestureRecognizer` used to be declared here too, but the
+/// native side sets `showsMenuAsPrimaryAction = true`, so UIKit already
+/// runs its own interaction to open the menu on press-and-hold. Claiming
+/// long-press on the Flutter side as well put two owners on one gesture:
+/// when UIKit presents the menu it takes over touch delivery in its own
+/// window, so the Flutter recognizer could stop receiving touch-up or
+/// cancel and leave an unresolved entry in the gesture arena — which is
+/// the suspected cause of multiple triggers interfering with each other.
+/// Matches every other platform view in this package, which all declare
+/// tap only.
 final Set<Factory<OneSequenceGestureRecognizer>> _menuGestureRecognizers =
     <Factory<OneSequenceGestureRecognizer>>{
   Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
-  Factory<LongPressGestureRecognizer>(() => LongPressGestureRecognizer()),
 };
 
 /// A single menu item for [LiquidGlassMenu].

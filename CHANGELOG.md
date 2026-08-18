@@ -6,8 +6,9 @@
 
 - `LiquidGlassContainer` and `LiquidGlassToolbar` no longer draw the glass material while their platform view still has a zero / degenerate size. A platform view is created before Flutter has committed its final layout, so the first geometry pass could bake a wrong corner radius into the shape — `capsule` and `circle` derive it from `min(w, h) / 2`, so the pill rendered square-cornered or clipped until layout settled. This was visible as an incompletely rendered button during bottom-sheet presentation and page transitions ([#9](https://github.com/tienanh306201z/native_liquid_glass/issues/9)). The draw is now skipped until the size is usable: a transparent frame instead of a mis-shaped one.
 
-### `LiquidGlassMenu` — documented as single trigger per screen
+### `LiquidGlassMenu` — single trigger per screen (gesture fix + documented limitation)
 
+- Removed the `LongPressGestureRecognizer` from the trigger's `UiKitView` gesture claim. The native side sets `showsMenuAsPrimaryAction = true`, so UIKit already runs its own interaction to open the menu on press-and-hold; claiming long-press on the Flutter side as well put two owners on one gesture. When UIKit presents the menu it takes over touch delivery in its own window, so the Flutter recognizer could stop receiving touch-up or cancel and leave an unresolved entry in the gesture arena — the suspected cause of multiple triggers interfering with each other ([#11](https://github.com/tienanh306201z/native_liquid_glass/issues/11)). Every other platform view in the package declares tap only; the menu was the sole exception. **Not verified against a reproduction** — please report back if multiple triggers are still unreliable.
 - Documented that the widget is meant for **one trigger per screen**. Multiple instances (e.g. one per `ListView` row) are not supported — the conflict sits below the widget tree, so Dart-side state cannot work around it. For per-row menus, use `PopupMenuButton` or `CupertinoContextMenu`.
 
 ### Docs

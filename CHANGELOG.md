@@ -11,6 +11,10 @@
 - Removed the `LongPressGestureRecognizer` from the trigger's `UiKitView` gesture claim. The native side sets `showsMenuAsPrimaryAction = true`, so UIKit already runs its own interaction to open the menu on press-and-hold; claiming long-press on the Flutter side as well put two owners on one gesture. When UIKit presents the menu it takes over touch delivery in its own window, so the Flutter recognizer could stop receiving touch-up or cancel and leave an unresolved entry in the gesture arena — the suspected cause of multiple triggers interfering with each other ([#11](https://github.com/tienanh306201z/native_liquid_glass/issues/11)). Every other platform view in the package declares tap only; the menu was the sole exception. **Not verified against a reproduction** — please report back if multiple triggers are still unreliable.
 - Documented that the widget is meant for **one trigger per screen**. Multiple instances (e.g. one per `ListView` row) are not supported — the conflict sits below the widget tree, so Dart-side state cannot work around it. For per-row menus, use `PopupMenuButton` or `CupertinoContextMenu`.
 
+### Tests
+
+- Fixed six stale widget tests that had been failing since before 0.2.14. They asserted a Flutter fallback for `LiquidGlassButton` (`FilledButton` / `IconButton`, tappable, invoking the callback) that the package no longer renders — off iOS 26+ the widgets return an empty `SizedBox`. The tests now pin that contract down instead, and a new test covers `LiquidGlassMenu`'s empty render, since its docstring had promised a `PopupMenuButton` fallback that never existed. `flutter test` is green again (12/12).
+
 ### Docs
 
 - `LiquidGlassMenu`'s docstring no longer claims it applies Liquid Glass effects. The trigger is a plain system `UIButton`; the glass appearance belongs to the system menu popup that UIKit presents in its own window.

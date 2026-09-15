@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.16
+
+### `LiquidGlassNavigationBar` — bar button items now pick up `tintColor`
+
+- Liquid Glass bar button items don't inherit `UINavigationBar.tintColor` for their glyph/label color — each `UIBarButtonItem` needs its own `tintColor` set. Leading/trailing items were rendering in the system default tint regardless of the `tintColor` passed to the widget. Items now get `tintColor` applied at creation, and existing items are re-tinted when `tintColor` is updated (including cleared back to `nil` on removal).
+
+### `titleTextStyle` — `color` support
+
+- `LiquidGlassNavigationBar.titleTextStyle` now accepts `TextStyle.color`, applied as `.foregroundColor` in the title's `NSAttributedString` attributes (both regular and large title). Previously only `fontSize`, `fontWeight`, `fontFamily`, and `letterSpacing` were forwarded.
+
 ## 0.2.15
 
 ### Container & toolbar — no more mis-shaped first frame

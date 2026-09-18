@@ -22,6 +22,7 @@ import 'liquid_glass_stepper_preview_page.dart';
 import 'liquid_glass_tab_bar_preview_page.dart';
 import 'liquid_glass_toggle_preview_page.dart';
 import 'liquid_glass_toolbar_preview_page.dart';
+import 'showcase_page.dart';
 
 class DemoCatalogPage extends StatelessWidget {
   final ValueChanged<bool> onThemeChanged;
@@ -37,6 +38,15 @@ class DemoCatalogPage extends StatelessWidget {
       ),
       body: ListView(
         children: [
+          ListTile(
+            leading: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('Showcase'),
+            subtitle: const Text('Every widget on one screen, over a real background'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ShowcasePage(onThemeChanged: onThemeChanged)));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.smart_button_outlined),
             title: const Text('LiquidGlassButton preview'),

@@ -43,7 +43,7 @@ class _LiquidGlassButtonGroupPreviewPageState extends State<LiquidGlassButtonGro
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: Center(
+                child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

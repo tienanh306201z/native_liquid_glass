@@ -7,6 +7,7 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
   private let navigationBar: UINavigationBar
   private let methodChannel: FlutterMethodChannel
   private var suppressObserver: GlassSuppressObserver?
+  private var currentTintColor: UIColor?
 
   init(
     frame: CGRect,
@@ -73,6 +74,9 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
     }
     // Store the id for identification in the tap handler
     item.accessibilityIdentifier = id
+    // Liquid Glass bar button items don't inherit UINavigationBar.tintColor
+    // for their glyph/label color, so it must be set per-item.
+    item.tintColor = currentTintColor
     return item
   }
 
@@ -89,6 +93,7 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
     let trailingItems = (args?["trailingItems"] as? [[String: Any]]) ?? []
     let backgroundColor = Self.decodeColor(from: args?["backgroundColor"])
     let tintColor = Self.decodeColor(from: args?["tintColor"])
+    currentTintColor = tintColor
     let titleStyle = LiquidGlassNavigationBarConfig.LabelStyle(
       arguments: args?["titleStyle"] as? [String: Any])
 
@@ -111,9 +116,10 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
     if hasAppearanceChanges {
       let appearance = UINavigationBarAppearance()
       if let backgroundColor { appearance.backgroundColor = backgroundColor }
-      if let titleFont = titleStyle?.resolvedFont() {
-        var titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
-        if let spacing = titleStyle?.letterSpacing { titleAttrs[.kern] = spacing }
+      if let titleStyle {
+        var titleAttrs: [NSAttributedString.Key: Any] = titleStyle.colorAttributes
+        if let titleFont = titleStyle.resolvedFont() { titleAttrs[.font] = titleFont }
+        if let spacing = titleStyle.letterSpacing { titleAttrs[.kern] = spacing }
         appearance.titleTextAttributes = titleAttrs
         if largeTitle {
           appearance.largeTitleTextAttributes = titleAttrs
@@ -158,10 +164,17 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
           // tintColor
           if args.keys.contains("tintColor") {
             if args["tintColor"] is NSNull {
+              self.currentTintColor = nil
               self.navigationBar.tintColor = nil  // restore system default tint
             } else if let tintColor = Self.decodeColor(from: args["tintColor"]) {
+              self.currentTintColor = tintColor
               self.navigationBar.tintColor = tintColor
             }
+            // Liquid Glass bar button items carry their own tintColor rather
+            // than inheriting the navigation bar's, so existing items must be
+            // updated explicitly.
+            self.navigationBar.topItem?.leftBarButtonItems?.forEach { $0.tintColor = self.currentTintColor }
+            self.navigationBar.topItem?.rightBarButtonItems?.forEach { $0.tintColor = self.currentTintColor }
           }
 
           // Rebuild the appearance from a default baseline whenever background
@@ -182,10 +195,10 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
 
             // titleStyle
             if let titleStyleArgs = args["titleStyle"] as? [String: Any],
-              let config = LiquidGlassNavigationBarConfig.LabelStyle(arguments: titleStyleArgs),
-              let titleFont = config.resolvedFont()
+              let config = LiquidGlassNavigationBarConfig.LabelStyle(arguments: titleStyleArgs)
             {
-              var titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
+              var titleAttrs: [NSAttributedString.Key: Any] = config.colorAttributes
+              if let titleFont = config.resolvedFont() { titleAttrs[.font] = titleFont }
               if let spacing = config.letterSpacing { titleAttrs[.kern] = spacing }
               appearance.titleTextAttributes = titleAttrs
               if self.navigationBar.prefersLargeTitles {

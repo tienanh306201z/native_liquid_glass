@@ -53,7 +53,7 @@ class _LiquidGlassNavigationBarPreviewPageState extends State<LiquidGlassNavigat
                 trailingItems: _trailingItems,
                 tintColor: _useTintColor ? _tintColor : null,
                 backgroundColor: _useBackgroundColor ? _backgroundColor : null,
-                titleTextStyle: _useTitleTextStyle ? TextStyle(fontSize: _titleFontSize, fontWeight: FontWeight.bold, letterSpacing: 0.3) : null,
+                titleTextStyle: _useTitleTextStyle ? TextStyle(fontSize: _titleFontSize, fontWeight: FontWeight.bold, letterSpacing: 0.3, color: _tintColor) : null,
                 onItemTapped: (id) => setState(() => _lastTappedItem = id),
               ),
               const SizedBox(height: 12),

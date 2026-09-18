@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// channel creation parameter (or creation params sub-map).
 ///
 /// Supported properties: [TextStyle.fontSize], [TextStyle.fontWeight],
-/// [TextStyle.fontFamily], and [TextStyle.letterSpacing].
+/// [TextStyle.fontFamily], [TextStyle.letterSpacing], and [TextStyle.color].
 ///
 /// Returns `null` when [style] is null or contains no applicable properties.
 Map<String, Object?>? textStylePayload(TextStyle? style) {
@@ -15,6 +15,7 @@ Map<String, Object?>? textStylePayload(TextStyle? style) {
     ...?(weight == null ? null : <String, Object?>{'fontWeight': weight}),
     ...?(style.fontFamily?.isNotEmpty == true ? <String, Object?>{'fontFamily': style.fontFamily} : null),
     ...?(style.letterSpacing == null ? null : <String, Object?>{'letterSpacing': style.letterSpacing}),
+    ...?(style.color == null ? null : <String, Object?>{'color': style.color!.toARGB32()}),
   };
   return payload.isEmpty ? null : payload;
 }

@@ -160,7 +160,13 @@ class LiquidGlassTabBar extends StatefulWidget {
   /// Current selected tab index.
   final int currentIndex;
 
-  /// Callback for tab selection.
+  /// Callback for user-driven tab selection.
+  ///
+  /// Fires only when the user taps a tab (including re-tapping the selected
+  /// one). It does **not** fire for the initial [currentIndex] when the
+  /// native view is created, nor when [currentIndex] is changed
+  /// programmatically — those selections originate in Flutter and are not
+  /// echoed back.
   final ValueChanged<int> onTabSelected;
 
   /// Callback fired when [iosActionButton] is tapped.

@@ -28,6 +28,14 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   private var tabIdentifiers: [String] = []
   /// Identifier of the trailing action tab, when one is configured.
   private var actionTabIdentifier: String?
+  /// True while the plugin itself is applying a selection (initial
+  /// `currentIndex` during setup, or `setSelectedIndex` from Dart). On
+  /// iOS 26+ the `UITab` API invokes `UITabBarControllerDelegate`
+  /// synchronously for *programmatic* `selectedTab` changes as well as for
+  /// user taps, so the delegate must ignore anything that fires while this
+  /// is set — otherwise Flutter's own state change is echoed back to it as
+  /// `onTabSelected` and the app treats it as a user tap.
+  private var isApplyingProgrammaticSelection = false
 
   init(
     config: LiquidGlassTabBarConfig,
@@ -426,7 +434,14 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   }
 
   /// Selects the tab at [index] through whichever API built the bar.
+  ///
+  /// The selection is flagged as programmatic for the duration of the call so
+  /// the delegate callbacks it triggers on iOS 26+ are not forwarded to
+  /// Flutter; only user-driven selections should reach `onTabSelected`.
   private func selectTab(at index: Int) {
+    isApplyingProgrammaticSelection = true
+    defer { isApplyingProgrammaticSelection = false }
+
     if #available(iOS 26.0, *), usesTabsAPI {
       guard index >= 0, index < tabIdentifiers.count,
         let tab = tabBarController.tab(forIdentifier: tabIdentifiers[index])
@@ -722,7 +737,7 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     _ tabBarController: UITabBarController, didSelect viewController: UIViewController
   ) {
     // The UITab construction path is handled by tabBarController(_:didSelectTab:previousTab:).
-    guard !usesTabsAPI else {
+    guard !usesTabsAPI, !isApplyingProgrammaticSelection else {
       return
     }
 
@@ -753,7 +768,11 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   func tabBarController(
     _ tabBarController: UITabBarController, didSelectTab selectedTab: UITab, previousTab: UITab?
   ) {
-    guard let index = tabIdentifiers.firstIndex(of: selectedTab.identifier) else {
+    // Programmatic selections (setup, `setSelectedIndex`) already apply their
+    // own tint and originate in Flutter; never echo them back.
+    guard !isApplyingProgrammaticSelection,
+      let index = tabIdentifiers.firstIndex(of: selectedTab.identifier)
+    else {
       return
     }
 

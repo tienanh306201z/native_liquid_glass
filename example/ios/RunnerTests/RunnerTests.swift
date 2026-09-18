@@ -241,6 +241,49 @@ final class LiquidGlassNativeTabBarControllerViewSelectionTests: XCTestCase {
     XCTAssertTrue(recorder.selectedIndices.isEmpty)
   }
 
+  // MARK: Programmatic selection from Dart must not echo back to Flutter
+
+  func testSetSelectedIndex_programmatic_doesNotNotifyFlutter() throws {
+    guard #available(iOS 26.0, *) else {
+      throw XCTSkip("UITab-based selection requires iOS 26+.")
+    }
+
+    let recorder = TabSelectionRecorder()
+    let config = makeConfig(tabCount: 3, currentIndex: 0)
+    let view = makeView(config: config, recorder: recorder)
+    XCTAssertTrue(recorder.selectedIndices.isEmpty, "Sanity check: setup must stay silent.")
+
+    // Dart calls `setSelectedIndex` when the app changes `currentIndex`
+    // itself (deep link, programmatic navigation, selection rollback). That
+    // selection originated in Flutter, so echoing it back as `onTabSelected`
+    // would make the app treat its own state change as a user tap.
+    view.setSelectedIndex(2)
+
+    XCTAssertEqual(view.tabBarController.selectedTab, view.tabBarController.tabs[2])
+    XCTAssertTrue(
+      recorder.selectedIndices.isEmpty,
+      "setSelectedIndex echoed onTabSelected(\(recorder.selectedIndices)) back to Flutter."
+    )
+  }
+
+  func testSetSelectedIndex_thenUserTap_stillNotifiesFlutter() throws {
+    guard #available(iOS 26.0, *) else {
+      throw XCTSkip("UITab-based selection requires iOS 26+.")
+    }
+
+    let recorder = TabSelectionRecorder()
+    let config = makeConfig(tabCount: 3, currentIndex: 0)
+    let view = makeView(config: config, recorder: recorder)
+
+    view.setSelectedIndex(2)
+    XCTAssertTrue(recorder.selectedIndices.isEmpty)
+
+    // A later user-driven selection must still reach Flutter: the
+    // programmatic-selection guard has to be scoped to the call, not sticky.
+    view.tabBarController.selectedTab = view.tabBarController.tabs[1]
+    XCTAssertEqual(recorder.selectedIndices, [1])
+  }
+
   func testDelegateDidSelectTab_mapsIdentifierBackToCorrectIndex() throws {
     guard #available(iOS 26.0, *) else {
       throw XCTSkip("UITab identifiers require iOS 26+.")

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1
+
+### Docs
+
+- README rewritten as a landing page: pitch, hero screenshots (light/dark), *why native* and the trade-offs up front, a 30-second quick start, a linked widget table with a screenshot gallery, then the full per-widget usage, *things to know* (platform support and fallbacks, overlay suppression, theme brightness, performance, limitations) and the extras. Every usage snippet from 0.3.0 is preserved verbatim. Fixes the stale `^0.2.7` install snippet and the outdated claim of a Flutter fallback on non-iOS platforms (widgets render an empty `SizedBox` there).
+- `screenshots:` added to `pubspec.yaml` so pub.dev shows the gallery. All images are captured from the example app on an iOS 27.0 simulator.
+
+### Example
+
+- New **Showcase** page (first catalog entry): every widget composed on one screen over a real gradient background, with an in-bar theme toggle. Source of the README hero image.
+- `LiquidGlassButtonGroup` preview no longer overflows on small screens.
+
 ## 0.3.0
 
 ### `LiquidGlassTabBar` — `onTabSelected` no longer fires for selections Flutter made itself

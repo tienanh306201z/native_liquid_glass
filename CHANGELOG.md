@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.16
+## 0.3.0
 
 ### `LiquidGlassTabBar` — `onTabSelected` no longer fires for selections Flutter made itself
 

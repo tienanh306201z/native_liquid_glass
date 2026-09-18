@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0
+
+### `LiquidGlassTabBar` — `onTabSelected` no longer fires for selections Flutter made itself
+
+- On iOS 26+ the bar is built with the `UITab` API, and `UITabBarController` invokes its delegate **synchronously for programmatic selection changes too**, not just for user taps. Two paths leaked that back to Flutter as `onTabSelected`:
+  - **View creation.** Assigning `tabs` and the initial `selectedTab` during setup ran with the delegate already attached, so every cold start — and every platform-view recreation (hot reload, theme flip, structural item change) — delivered a spurious `onTabSelected` (usually `0`) before anyone touched the bar. Apps that play a haptic or run "re-tap current tab" logic in the callback fired it on launch; apps that pop their navigation stack on tab selection lost their stack on hot reload ([#15](https://github.com/tienanh306201z/native_liquid_glass/issues/15)). The delegate is now attached only after the initial selection is applied. Thanks to [@abdallah-odeh](https://github.com/abdallah-odeh) for the fix and the XCTest coverage ([#18](https://github.com/tienanh306201z/native_liquid_glass/pull/18)).
+  - **`currentIndex` changed from Dart.** `setSelectedIndex` (sent when the app changes `currentIndex` itself — deep link, programmatic navigation, selection rollback) selected the tab natively and the delegate echoed it straight back, so the app's own state change came back as a "tap". Programmatic selections are now flagged for the duration of the call and ignored by the delegate; user taps afterwards still reach Flutter.
+- Verified with XCTest on the iOS 27 simulator: the setup-leak tests fail on 0.2.15 and pass now, and two new tests pin the `setSelectedIndex` echo.
+
+### `LiquidGlassNavigationBar` — bar button items now pick up `tintColor`
+
+- Liquid Glass bar button items don't inherit `UINavigationBar.tintColor` for their glyph/label color — each `UIBarButtonItem` needs its own `tintColor` set. Leading/trailing items were rendering in the system default tint regardless of the `tintColor` passed to the widget. Items now get `tintColor` applied at creation, and existing items are re-tinted when `tintColor` is updated (including cleared back to `nil` on removal).
+
+### `titleTextStyle` — `color` support
+
+- `LiquidGlassNavigationBar.titleTextStyle` now accepts `TextStyle.color`, applied as `.foregroundColor` in the title's `NSAttributedString` attributes (both regular and large title). Previously only `fontSize`, `fontWeight`, `fontFamily`, and `letterSpacing` were forwarded.
+- Both navigation bar changes by [@abdallah-odeh](https://github.com/abdallah-odeh) ([#17](https://github.com/tienanh306201z/native_liquid_glass/pull/17)).
+
+### Docs
+
+- Documented the performance trade-off of hosting a native `UiKitView` on a Flutter screen (see README → *Performance*), prompted by [#16](https://github.com/tienanh306201z/native_liquid_glass/issues/16).
+
 ## 0.2.15
 
 ### Container & toolbar — no more mis-shaped first frame

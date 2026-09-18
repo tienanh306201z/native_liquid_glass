@@ -68,7 +68,7 @@ class LiquidGlassNavigationBar extends StatefulWidget {
   /// Optional text style for the navigation bar title.
   ///
   /// Supported properties: [TextStyle.fontSize], [TextStyle.fontWeight],
-  /// [TextStyle.fontFamily], and [TextStyle.letterSpacing].
+  /// [TextStyle.fontFamily], [TextStyle.letterSpacing], and [TextStyle.color].
   final TextStyle? titleTextStyle;
 
   /// Height of the bar. Defaults to 44 (standard) or 96 (large title).

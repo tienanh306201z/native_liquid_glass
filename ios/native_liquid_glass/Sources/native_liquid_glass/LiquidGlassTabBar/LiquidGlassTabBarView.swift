@@ -28,6 +28,14 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   private var tabIdentifiers: [String] = []
   /// Identifier of the trailing action tab, when one is configured.
   private var actionTabIdentifier: String?
+  /// True while the plugin itself is applying a selection (initial
+  /// `currentIndex` during setup, or `setSelectedIndex` from Dart). On
+  /// iOS 26+ the `UITab` API invokes `UITabBarControllerDelegate`
+  /// synchronously for *programmatic* `selectedTab` changes as well as for
+  /// user taps, so the delegate must ignore anything that fires while this
+  /// is set — otherwise Flutter's own state change is echoed back to it as
+  /// `onTabSelected` and the app treats it as a user tap.
+  private var isApplyingProgrammaticSelection = false
 
   init(
     config: LiquidGlassTabBarConfig,
@@ -142,7 +150,6 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   /// 3) apply optional appearance customization
   /// 4) embed the tab bar controller's view
   private func configureTabBarController(with config: LiquidGlassTabBarConfig) {
-    tabBarController.delegate = self
     tabBarController.view.backgroundColor = .clear
     tabBarController.view.clipsToBounds = false
     tabBarController.view.isOpaque = false
@@ -164,6 +171,16 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
       currentIndex: config.currentIndex,
       selectableTabCount: selectableTabCount
     )
+
+    // Assign the delegate only after tabs/selection are configured: the
+    // `UITab` API (`tabs =`, `selectedTab =`) invokes
+    // `UITabBarControllerDelegate` synchronously, including for the implicit
+    // "select tab 0" that happens when `tabs` is first assigned and for the
+    // explicit `selectTab(at:)` call above. With the delegate live during
+    // setup, both of those leaked as spurious `onTabSelected` calls to
+    // Flutter before the real `currentIndex` selection had even applied —
+    // read by the app as a real tap on tab 0, popping its navigation stack.
+    tabBarController.delegate = self
 
     let tabBar = tabBarController.tabBar
     tabBar.clipsToBounds = false
@@ -417,7 +434,14 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   }
 
   /// Selects the tab at [index] through whichever API built the bar.
+  ///
+  /// The selection is flagged as programmatic for the duration of the call so
+  /// the delegate callbacks it triggers on iOS 26+ are not forwarded to
+  /// Flutter; only user-driven selections should reach `onTabSelected`.
   private func selectTab(at index: Int) {
+    isApplyingProgrammaticSelection = true
+    defer { isApplyingProgrammaticSelection = false }
+
     if #available(iOS 26.0, *), usesTabsAPI {
       guard index >= 0, index < tabIdentifiers.count,
         let tab = tabBarController.tab(forIdentifier: tabIdentifiers[index])
@@ -713,7 +737,7 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
     _ tabBarController: UITabBarController, didSelect viewController: UIViewController
   ) {
     // The UITab construction path is handled by tabBarController(_:didSelectTab:previousTab:).
-    guard !usesTabsAPI else {
+    guard !usesTabsAPI, !isApplyingProgrammaticSelection else {
       return
     }
 
@@ -744,7 +768,11 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   func tabBarController(
     _ tabBarController: UITabBarController, didSelectTab selectedTab: UITab, previousTab: UITab?
   ) {
-    guard let index = tabIdentifiers.firstIndex(of: selectedTab.identifier) else {
+    // Programmatic selections (setup, `setSelectedIndex`) already apply their
+    // own tint and originate in Flutter; never echo them back.
+    guard !isApplyingProgrammaticSelection,
+      let index = tabIdentifiers.firstIndex(of: selectedTab.identifier)
+    else {
       return
     }
 

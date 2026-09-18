@@ -475,6 +475,22 @@ Each widget creates a `UiKitView` that Flutter embeds into the render tree. The 
 
 On iOS 26+, all native UIKit controls automatically receive Apple's Liquid Glass styling. On older iOS versions, the same controls render with their standard system appearance.
 
+## Performance
+
+Every widget in this package is a real `UIView` hosted through Flutter's `UiKitView`. That is what makes the glass genuinely native, and it is also a cost that a Flutter-drawn widget does not have:
+
+- **Compositing.** Flutter cannot draw a native view into its own surface. While a platform view is on screen, Flutter splits its output around it and keeps its frames in step with UIKit's view hierarchy on the main thread, so rasterization no longer runs fully in parallel with your Dart and UIKit work. This affects the **whole screen** for as long as any platform view is visible, not only the platform view itself.
+- **Overlay surfaces.** Any Flutter content painted *on top of* a platform view (later in paint order and overlapping its rect) forces an extra overlay surface. Keep glass views last in the paint order — `Scaffold.bottomNavigationBar`, or the final child of a `Stack` with nothing drawn over it — so no overlay is needed.
+- **Glass sampling.** On iOS 26+ the material samples the content behind it every frame. That is GPU work UIKit does for its own bars too, but it is not free.
+
+What helps in practice:
+
+- One or two platform views per screen, not one per list row. Prefer Flutter widgets for anything that repeats.
+- Nothing painted over the glass view. If content must scroll under a bottom bar, make sure it is *under* it in paint order, not over it.
+- Measure with the DevTools performance overlay / timeline on a **release** build on a device; simulator and debug numbers are not representative for platform views.
+
+If a page is noticeably janky with a glass bar and smooth without it, and none of the above applies, please open an issue with a DevTools timeline capture.
+
 ## Notes
 
 - Tab bar background, shadow, and badge styling are intentionally system-driven.

@@ -7,6 +7,7 @@ struct LiquidGlassNavigationBarConfig {
     let fontWeight: UIFont.Weight?
     let fontFamily: String?
     let letterSpacing: CGFloat?
+    let color: UIColor?
 
     init?(arguments args: [String: Any]?) {
       guard let args else { return nil }
@@ -17,9 +18,10 @@ struct LiquidGlassNavigationBarConfig {
       let parsedFontFamily = (args["fontFamily"] as? String)?.trimmingCharacters(
         in: .whitespacesAndNewlines)
       let parsedLetterSpacing = (args["letterSpacing"] as? NSNumber).map { CGFloat(truncating: $0) }
+      let parsedColor = Self.decodeColor(from: args["color"])
       if parsedFontSize == nil && parsedFontWeight == nil
         && (parsedFontFamily == nil || parsedFontFamily?.isEmpty == true)
-        && parsedLetterSpacing == nil
+        && parsedLetterSpacing == nil && parsedColor == nil
       {
         return nil
       }
@@ -27,6 +29,23 @@ struct LiquidGlassNavigationBarConfig {
       fontWeight = parsedFontWeight
       fontFamily = (parsedFontFamily?.isEmpty == false) ? parsedFontFamily : nil
       letterSpacing = parsedLetterSpacing
+      color = parsedColor
+    }
+
+    private static func decodeColor(from value: Any?) -> UIColor? {
+      guard let numericValue = value as? NSNumber else { return nil }
+      let argb = UInt32(bitPattern: Int32(truncatingIfNeeded: numericValue.intValue))
+      let alpha = CGFloat((argb >> 24) & 0xFF) / 255.0
+      let red = CGFloat((argb >> 16) & 0xFF) / 255.0
+      let green = CGFloat((argb >> 8) & 0xFF) / 255.0
+      let blue = CGFloat(argb & 0xFF) / 255.0
+      return UIColor(red: red, green: green, blue: blue, alpha: alpha)
+    }
+
+    /// Title-attribute dictionary contributed by [color], if set.
+    var colorAttributes: [NSAttributedString.Key: Any] {
+      guard let color else { return [:] }
+      return [.foregroundColor: color]
     }
 
     func resolvedFont(defaultSize: CGFloat = 17.0) -> UIFont? {

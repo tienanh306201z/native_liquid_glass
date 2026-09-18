@@ -29,8 +29,29 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
     super.init()
     suppressObserver = GlassSuppressObserver(view: containerView)
 
+    applyUserInterfaceStyle(Self.decodeUserInterfaceStyle(from: args?["brightness"]))
     configureBar(args: args)
     setupMethodChannelHandler()
+  }
+
+  /// Pins the bar to the Flutter app's brightness instead of the device
+  /// appearance. Without this the title, bar-button glyphs and the glass
+  /// background resolve their dynamic colors against the *device* style, so a
+  /// light-themed app on a dark device gets a white title on a light page.
+  /// Set on both the container and the bar so a Flutter push/pop (which
+  /// detaches and reattaches the platform view) can't re-resolve it.
+  private func applyUserInterfaceStyle(_ style: UIUserInterfaceStyle) {
+    containerView.overrideUserInterfaceStyle = style
+    navigationBar.overrideUserInterfaceStyle = style
+  }
+
+  /// `"dark"` / `"light"` from Dart; anything else follows the system.
+  static func decodeUserInterfaceStyle(from value: Any?) -> UIUserInterfaceStyle {
+    switch value as? String {
+    case "dark": return .dark
+    case "light": return .light
+    default: return .unspecified
+    }
   }
 
   func view() -> UIView {
@@ -225,6 +246,11 @@ final class LiquidGlassNavigationBarPlatformView: NSObject, FlutterPlatformView 
             self.makeBarButtonItem(from: $0)
           }
         }
+        result(nil)
+
+      case "setBrightness":
+        let brightness = (call.arguments as? [String: Any])?["brightness"]
+        self.applyUserInterfaceStyle(Self.decodeUserInterfaceStyle(from: brightness))
         result(nil)
 
       case "setSuppressed":

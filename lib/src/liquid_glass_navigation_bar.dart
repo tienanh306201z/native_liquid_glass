@@ -74,6 +74,16 @@ class LiquidGlassNavigationBar extends StatefulWidget {
   /// Height of the bar. Defaults to 44 (standard) or 96 (large title).
   final double? height;
 
+  /// Brightness the native bar renders with.
+  ///
+  /// When null (the default) the bar follows the **device** appearance, like
+  /// any other UIKit bar. If your app drives its own theme (for example a
+  /// `ThemeMode` toggle) pass `Theme.of(context).brightness` so the title,
+  /// bar-button glyphs and glass background resolve against the same
+  /// brightness as the page behind them; changes are applied to the live
+  /// view without recreating it.
+  final Brightness? brightness;
+
   const LiquidGlassNavigationBar({
     super.key,
     required this.title,
@@ -85,6 +95,7 @@ class LiquidGlassNavigationBar extends StatefulWidget {
     this.tintColor,
     this.titleTextStyle,
     this.height,
+    this.brightness,
   });
 
   @override
@@ -102,12 +113,21 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
   int _lastTrailingItemsHash = 0;
   Map<String, Object?>? _cachedCreationParams;
   int? _creationParamsCacheKey;
+  String? _lastBrightness;
 
   @override
   void didUpdateWidget(covariant LiquidGlassNavigationBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncPropsToNativeIfNeeded();
   }
+
+  /// [LiquidGlassNavigationBar.brightness] as the string the native side
+  /// decodes; `null` means "follow the device".
+  static String? _brightnessValue(Brightness? brightness) => switch (brightness) {
+        null => null,
+        Brightness.dark => 'dark',
+        Brightness.light => 'light',
+      };
 
   int _computeItemsHash(List<LiquidGlassNavBarItem> items) {
     return Object.hashAll(items.map((i) => Object.hash(i.id, i.icon?.nativeSignature, i.label, i.iconSize)));
@@ -129,6 +149,13 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
       _lastTintColor = tintColor;
       _lastBgColor = bgColor;
       _lastTitleStyleHash = titleStyleHash;
+    }
+    final brightness = _brightnessValue(widget.brightness);
+    if (_lastBrightness != brightness) {
+      // Sent as an explicit null when cleared so native falls back to the
+      // device appearance instead of keeping the previous override.
+      await ch.invokeMethod('setBrightness', {'brightness': brightness});
+      _lastBrightness = brightness;
     }
     final leadingHash = _computeItemsHash(widget.leadingItems);
     final trailingHash = _computeItemsHash(widget.trailingItems);
@@ -162,6 +189,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
     _lastTitleStyleHash = textStyleSignature(widget.titleTextStyle);
     _lastLeadingItemsHash = _computeItemsHash(widget.leadingItems);
     _lastTrailingItemsHash = _computeItemsHash(widget.trailingItems);
+    _lastBrightness = _brightnessValue(widget.brightness);
     syncGlassRouteVisibility();
   }
 
@@ -180,6 +208,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
       widget.backgroundColor?.toARGB32(),
       widget.tintColor?.toARGB32(),
       textStyleSignature(widget.titleTextStyle),
+      widget.brightness,
     ]);
   }
 
@@ -204,6 +233,9 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
       'backgroundColor': widget.backgroundColor?.toARGB32(),
       'tintColor': widget.tintColor?.toARGB32(),
       'titleStyle': textStylePayload(widget.titleTextStyle),
+      // Optional override of the device appearance; omitted (null) means the
+      // bar follows the device like any UIKit bar.
+      'brightness': _brightnessValue(widget.brightness),
     };
   }
 

@@ -54,6 +54,9 @@ class _LiquidGlassNavigationBarPreviewPageState extends State<LiquidGlassNavigat
                 tintColor: _useTintColor ? _tintColor : null,
                 backgroundColor: _useBackgroundColor ? _backgroundColor : null,
                 titleTextStyle: _useTitleTextStyle ? TextStyle(fontSize: _titleFontSize, fontWeight: FontWeight.bold, letterSpacing: 0.3, color: _tintColor) : null,
+                // The demo drives its own ThemeMode, so pin the bar to it;
+                // leave this null to follow the device appearance instead.
+                brightness: Theme.of(context).brightness,
                 onItemTapped: (id) => setState(() => _lastTappedItem = id),
               ),
               const SizedBox(height: 12),

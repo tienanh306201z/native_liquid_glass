@@ -216,6 +216,9 @@ LiquidGlassNavigationBar(
     ),
   ],
   trailingItems: const [LiquidGlassNavBarItem(id: 'done', label: 'Done')],
+  // Optional. Null (default) follows the device appearance; pass the app
+  // theme's brightness if your app drives its own ThemeMode.
+  brightness: Theme.of(context).brightness,
   onItemTapped: (id) {},
 )
 ```

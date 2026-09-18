@@ -102,11 +102,32 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
   int _lastTrailingItemsHash = 0;
   Map<String, Object?>? _cachedCreationParams;
   int? _creationParamsCacheKey;
+  String? _lastBrightness;
 
   @override
   void didUpdateWidget(covariant LiquidGlassNavigationBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncPropsToNativeIfNeeded();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // `Theme` is inherited, so a theme flip arrives here rather than in
+    // `didUpdateWidget`. Push it to the live view instead of recreating it.
+    _syncBrightnessIfNeeded();
+  }
+
+  /// Flutter theme brightness as the string the native side decodes.
+  String _brightnessOf(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? 'dark' : 'light';
+
+  void _syncBrightnessIfNeeded() {
+    final ch = _nativeChannel;
+    if (ch == null) return;
+    final brightness = _brightnessOf(context);
+    if (_lastBrightness == brightness) return;
+    _lastBrightness = brightness;
+    ch.invokeMethod('setBrightness', {'brightness': brightness});
   }
 
   int _computeItemsHash(List<LiquidGlassNavBarItem> items) {
@@ -162,8 +183,15 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
     _lastTitleStyleHash = textStyleSignature(widget.titleTextStyle);
     _lastLeadingItemsHash = _computeItemsHash(widget.leadingItems);
     _lastTrailingItemsHash = _computeItemsHash(widget.trailingItems);
+    // The view was created with the brightness captured in creationParams;
+    // anything that changed since is pushed by `_syncBrightnessIfNeeded`.
+    _lastBrightness = _creationParamsBrightness;
+    _syncBrightnessIfNeeded();
     syncGlassRouteVisibility();
   }
+
+  /// Brightness baked into the most recently built creation params.
+  String? _creationParamsBrightness;
 
   @override
   void dispose() {
@@ -171,7 +199,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
     super.dispose();
   }
 
-  int _computeCreationParamsHash() {
+  int _computeCreationParamsHash(String brightness) {
     return Object.hashAll([
       widget.title,
       widget.largeTitle,
@@ -180,22 +208,24 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
       widget.backgroundColor?.toARGB32(),
       widget.tintColor?.toARGB32(),
       textStyleSignature(widget.titleTextStyle),
+      brightness,
     ]);
   }
 
-  Map<String, Object?> _creationParamsCached() {
-    final key = _computeCreationParamsHash();
+  Map<String, Object?> _creationParamsCached(String brightness) {
+    final key = _computeCreationParamsHash(brightness);
     final cached = _cachedCreationParams;
     if (_creationParamsCacheKey == key && cached != null) {
       return cached;
     }
-    final params = _buildCreationParams();
+    final params = _buildCreationParams(brightness);
     _creationParamsCacheKey = key;
     _cachedCreationParams = params;
+    _creationParamsBrightness = brightness;
     return params;
   }
 
-  Map<String, Object?> _buildCreationParams() {
+  Map<String, Object?> _buildCreationParams(String brightness) {
     return <String, Object?>{
       'title': widget.title,
       'largeTitle': widget.largeTitle,
@@ -204,6 +234,10 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
       'backgroundColor': widget.backgroundColor?.toARGB32(),
       'tintColor': widget.tintColor?.toARGB32(),
       'titleStyle': textStylePayload(widget.titleTextStyle),
+      // Pin the native bar to the app theme, not the device appearance, so
+      // title/items/glass resolve against the same brightness as the page
+      // behind them (the tab bar has done this since 0.2.9).
+      'brightness': brightness,
     };
   }
 
@@ -219,7 +253,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar> wit
         height: _height,
         child: UiKitView(
           viewType: 'liquid-glass-navigation-bar-view',
-          creationParams: _creationParamsCached(),
+          creationParams: _creationParamsCached(_brightnessOf(context)),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
           gestureRecognizers: _navBarGestureRecognizers,

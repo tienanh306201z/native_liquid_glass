@@ -9,6 +9,10 @@
   - **`currentIndex` changed from Dart.** `setSelectedIndex` (sent when the app changes `currentIndex` itself — deep link, programmatic navigation, selection rollback) selected the tab natively and the delegate echoed it straight back, so the app's own state change came back as a "tap". Programmatic selections are now flagged for the duration of the call and ignored by the delegate; user taps afterwards still reach Flutter.
 - Verified with XCTest on the iOS 27 simulator: the setup-leak tests fail on 0.2.15 and pass now, and two new tests pin the `setSelectedIndex` echo.
 
+### `LiquidGlassNavigationBar` — follows the Flutter theme, not the device appearance
+
+- The bar never set `overrideUserInterfaceStyle`, so its title, bar-button glyphs and glass background resolved their dynamic colors against the **device** appearance. A light-themed app on a dark device got a white "Inbox" on a light page (the "title is always white in light mode" report in [#17](https://github.com/tienanh306201z/native_liquid_glass/pull/17)); the reverse gave a black title on a dark page. The widget now sends `Theme.of(context).brightness` in `creationParams` and pushes `setBrightness` over the channel when the theme flips, so the bar switches live without recreating the platform view — the same contract `LiquidGlassTabBar` has had since 0.2.9 ([#20](https://github.com/tienanh306201z/native_liquid_glass/issues/20)). Verified on the iOS 27 simulator with device appearance forced to dark, plus four XCTests. Omitting the key keeps the old follow-the-system behaviour.
+
 ### `LiquidGlassNavigationBar` — bar button items now pick up `tintColor`
 
 - Liquid Glass bar button items don't inherit `UINavigationBar.tintColor` for their glyph/label color — each `UIBarButtonItem` needs its own `tintColor` set. Leading/trailing items were rendering in the system default tint regardless of the `tintColor` passed to the widget. Items now get `tintColor` applied at creation, and existing items are re-tinted when `tintColor` is updated (including cleared back to `nil` on removal).

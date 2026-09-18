@@ -352,3 +352,70 @@ final class LiquidGlassNavigationBarLabelStyleTests: XCTestCase {
     XCTAssertNil(style)
   }
 }
+
+// MARK: - LiquidGlassNavigationBarPlatformView brightness mirroring
+//
+// The bar must follow the Flutter theme (`brightness` creation param), not
+// the device appearance, and must switch live on `setBrightness`.
+
+/// Minimal `FlutterBinaryMessenger` so a platform view can be constructed
+/// without a running engine. Messages go nowhere.
+private final class NoopBinaryMessenger: NSObject, FlutterBinaryMessenger {
+  func send(onChannel channel: String, message: Data?) {}
+  func send(onChannel channel: String, message: Data?, binaryReply callback: FlutterBinaryReply? = nil) {}
+  func setMessageHandlerOnChannel(
+    _ channel: String, binaryMessageHandler handler: FlutterBinaryMessageHandler? = nil
+  ) -> FlutterBinaryMessengerConnection { 0 }
+  func cleanUpConnection(_ connection: FlutterBinaryMessengerConnection) {}
+}
+
+final class LiquidGlassNavigationBarBrightnessTests: XCTestCase {
+
+  private func makeView(args: [String: Any]) -> LiquidGlassNavigationBarPlatformView {
+    LiquidGlassNavigationBarPlatformView(
+      frame: CGRect(x: 0, y: 0, width: 390, height: 44),
+      viewId: 1,
+      arguments: args,
+      messenger: NoopBinaryMessenger()
+    )
+  }
+
+  private func navigationBar(in view: LiquidGlassNavigationBarPlatformView) -> UINavigationBar? {
+    view.view().subviews.compactMap { $0 as? UINavigationBar }.first
+  }
+
+  func testDecodeUserInterfaceStyle() {
+    XCTAssertEqual(LiquidGlassNavigationBarPlatformView.decodeUserInterfaceStyle(from: "dark"), .dark)
+    XCTAssertEqual(LiquidGlassNavigationBarPlatformView.decodeUserInterfaceStyle(from: "light"), .light)
+    XCTAssertEqual(LiquidGlassNavigationBarPlatformView.decodeUserInterfaceStyle(from: nil), .unspecified)
+    XCTAssertEqual(LiquidGlassNavigationBarPlatformView.decodeUserInterfaceStyle(from: "auto"), .unspecified)
+  }
+
+  func testInit_appliesBrightnessFromCreationParams_toContainerAndBar() {
+    let view = makeView(args: ["title": "Inbox", "brightness": "dark"])
+
+    XCTAssertEqual(view.view().overrideUserInterfaceStyle, .dark)
+    XCTAssertEqual(navigationBar(in: view)?.overrideUserInterfaceStyle, .dark)
+  }
+
+  func testInit_withoutBrightness_followsSystem() {
+    // Older Dart callers (or a missing key) must keep the pre-0.3.0 behaviour.
+    let view = makeView(args: ["title": "Inbox"])
+
+    XCTAssertEqual(view.view().overrideUserInterfaceStyle, .unspecified)
+  }
+
+  func testTitleColorResolvesAgainstMirroredBrightness_notDevice() {
+    // The whole point: with the app dark, the default title color must
+    // resolve to the dark-mode label color even if the device is light.
+    let view = makeView(args: ["title": "Inbox", "brightness": "dark"])
+    let traits = view.view().traitCollection
+    XCTAssertEqual(traits.userInterfaceStyle, .dark)
+
+    let resolved = UIColor.label.resolvedColor(with: traits)
+    var white: CGFloat = 0, alpha: CGFloat = 0
+    XCTAssertTrue(resolved.getWhite(&white, alpha: &alpha))
+    XCTAssertGreaterThan(white, 0.5, "dark-mode label color should be light")
+  }
+}
+

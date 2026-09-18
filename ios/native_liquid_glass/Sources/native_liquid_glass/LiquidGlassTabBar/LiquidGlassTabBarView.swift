@@ -142,7 +142,6 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
   /// 3) apply optional appearance customization
   /// 4) embed the tab bar controller's view
   private func configureTabBarController(with config: LiquidGlassTabBarConfig) {
-    tabBarController.delegate = self
     tabBarController.view.backgroundColor = .clear
     tabBarController.view.clipsToBounds = false
     tabBarController.view.isOpaque = false
@@ -164,6 +163,16 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
       currentIndex: config.currentIndex,
       selectableTabCount: selectableTabCount
     )
+
+    // Assign the delegate only after tabs/selection are configured: the
+    // `UITab` API (`tabs =`, `selectedTab =`) invokes
+    // `UITabBarControllerDelegate` synchronously, including for the implicit
+    // "select tab 0" that happens when `tabs` is first assigned and for the
+    // explicit `selectTab(at:)` call above. With the delegate live during
+    // setup, both of those leaked as spurious `onTabSelected` calls to
+    // Flutter before the real `currentIndex` selection had even applied —
+    // read by the app as a real tap on tab 0, popping its navigation stack.
+    tabBarController.delegate = self
 
     let tabBar = tabBarController.tabBar
     tabBar.clipsToBounds = false

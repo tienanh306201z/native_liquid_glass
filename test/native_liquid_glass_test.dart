@@ -93,6 +93,163 @@ void main() {
     expect(actionTapCount, 0);
   });
 
+  // Regression coverage for the native default-tab notification leak fixed
+  // in `LiquidGlassNativeTabBarControllerView.configureTabBarController`
+  // (iOS `RunnerTests`): `tabBarController.delegate = self` was assigned
+  // before tabs/selection were configured, so the UITab API's synchronous
+  // delegate callback on programmatic selection leaked a spurious
+  // `onTabSelected(0)` to Flutter *before* the real `currentIndex` was
+  // applied. Flutter's `LiquidGlassTabBar.reassemble()` (called on every hot
+  // reload) unconditionally rebuilds the native tabs payload, which forces
+  // the platform view to be torn down and recreated — replaying that setup
+  // sequence and re-leaking the spurious notification. These tests exercise
+  // the Dart side of that reload path: `flutter test` runs on a non-iOS host
+  // so `NativeLiquidGlassUtils.supportsLiquidGlass` is always false here and
+  // the widget never actually creates the `UiKitView`/native channel (see
+  // the "no Flutter fallback" tests above) — so `onTabSelected` cannot be
+  // invoked at all in this environment. What *is* verifiable here is that
+  // `reassemble()`, `didUpdateWidget`, and a non-zero/last-tab
+  // `currentIndex` never crash and never call `onTabSelected` on their own.
+  group('LiquidGlassTabBar hot-reload / reassemble regression coverage', () {
+    Widget buildTabBar({
+      required int currentIndex,
+      required ValueChanged<int> onTabSelected,
+      int itemCount = 3,
+    }) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 360,
+              child: LiquidGlassTabBar(
+                items: List.generate(
+                  itemCount,
+                  (i) => LiquidGlassTabItem(
+                    icon: NativeLiquidGlassIcon.iconData(Icons.home_outlined),
+                    label: 'Tab $i',
+                  ),
+                ),
+                currentIndex: currentIndex,
+                onTabSelected: onTabSelected,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('renders empty fallback with a non-zero currentIndex, never fires onTabSelected', (tester) async {
+      var selectedCount = 0;
+
+      await tester.pumpWidget(
+        buildTabBar(currentIndex: 2, onTabSelected: (_) => selectedCount++),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Tab 0'), findsNothing);
+      expect(find.text('Tab 2'), findsNothing);
+      expect(selectedCount, 0, reason: 'no native platform view exists on this host; nothing should invoke onTabSelected');
+    });
+
+    testWidgets('currentIndex pinned to the last tab never leaks an index-0 callback', (tester) async {
+      // Mirrors the native regression case: currentIndex at the last tab
+      // makes a leaked "auto-selected tab 0" notification unambiguous from
+      // the real selection.
+      final observedIndices = <int>[];
+
+      await tester.pumpWidget(
+        buildTabBar(currentIndex: 3, itemCount: 4, onTabSelected: observedIndices.add),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(observedIndices, isEmpty);
+      expect(observedIndices, isNot(contains(0)));
+    });
+
+    // NOTE: an earlier version of this coverage drove this via
+    // `tester.binding.reassembleApplication()` (the literal hot-reload
+    // hook). That call deadlocks under `flutter test`'s
+    // `AutomatedTestWidgetsFlutterBinding` on this Flutter version — it
+    // never returns even after `pumpAndSettle()`, hanging each test for the
+    // full 10-minute framework timeout. Tearing down and remounting the
+    // widget (what a hot reload's new `ValueKey` on the `UiKitView`
+    // actually causes: `dispose()` then a fresh `initState()` on a new
+    // `_LiquidGlassTabBarState`) is both safe to run here and the more
+    // accurate simulation of the production mechanism described at the top
+    // of this group.
+    testWidgets('tearing down and remounting the tab bar (as hot reload does) never fires onTabSelected', (tester) async {
+      final observedIndices = <int>[];
+
+      await tester.pumpWidget(
+        buildTabBar(currentIndex: 2, onTabSelected: observedIndices.add),
+      );
+      await tester.pumpAndSettle();
+      expect(observedIndices, isEmpty);
+
+      // Unmount (disposes `_LiquidGlassTabBarState`) then remount a brand
+      // new instance with the same `currentIndex` — analogous to Flutter
+      // swapping in a new `ValueKey` on hot reload and recreating the
+      // platform view from scratch.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        buildTabBar(currentIndex: 2, onTabSelected: observedIndices.add),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        observedIndices, isEmpty,
+        reason: 'remounting after teardown must not synthesize a tab selection on its own',
+      );
+    });
+
+    testWidgets('repeated teardown/remount cycles stay stable across multiple simulated hot reloads', (tester) async {
+      final observedIndices = <int>[];
+
+      await tester.pumpWidget(
+        buildTabBar(currentIndex: 1, onTabSelected: observedIndices.add),
+      );
+      await tester.pumpAndSettle();
+
+      for (var i = 0; i < 3; i++) {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildTabBar(currentIndex: 1, onTabSelected: observedIndices.add),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'teardown/remount cycle #$i must not throw');
+      }
+
+      expect(observedIndices, isEmpty);
+      expect(find.text('Tab 1'), findsNothing);
+    });
+
+    testWidgets('changing currentIndex via didUpdateWidget does not crash without a live native channel', (tester) async {
+      final observedIndices = <int>[];
+
+      await tester.pumpWidget(
+        buildTabBar(currentIndex: 0, onTabSelected: observedIndices.add),
+      );
+      await tester.pumpAndSettle();
+
+      // Rebuild with a new `currentIndex`, exercising
+      // `_LiquidGlassTabBarState.didUpdateWidget`'s
+      // `_syncNativeSelectedIndex` branch, which is a no-op when
+      // `_nativeChannel` was never established (fallback path).
+      await tester.pumpWidget(
+        buildTabBar(currentIndex: 2, onTabSelected: observedIndices.add),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(observedIndices, isEmpty);
+    });
+  });
+
   testWidgets('tab items accept per-item icon size and selected color', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

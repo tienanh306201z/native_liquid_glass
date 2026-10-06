@@ -853,12 +853,30 @@ final class LiquidGlassNativeTabBarControllerView: UIView, UITabBarControllerDel
 
 // MARK: - Platform view bridge
 
+private final class LiquidGlassTabBarContainerView: UIView {
+  var onLayoutChanged: (() -> Void)?
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    onLayoutChanged?()
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    onLayoutChanged?()
+  }
+}
+
 final class LiquidGlassTabBarPlatformView: NSObject, FlutterPlatformView {
-  private let containerView: UIView
+  private let containerView: LiquidGlassTabBarContainerView
   private let channel: FlutterMethodChannel
   private weak var hostViewController: UIViewController?
   private var nativeTabBarControllerView: LiquidGlassNativeTabBarControllerView?
   private var suppressObserver: GlassSuppressObserver?
+  private var nativeViewConstraints: [NSLayoutConstraint] = []
+  private var glassOverflow: CGFloat = 0
+  private var lastChromePayload: [String: Any]?
+  private var chromeLayout: LiquidGlassTabBarChromeLayout = .horizontalBottom
 
   init(
     frame: CGRect,
@@ -867,7 +885,7 @@ final class LiquidGlassTabBarPlatformView: NSObject, FlutterPlatformView {
     messenger: FlutterBinaryMessenger,
     hostViewController: UIViewController?
   ) {
-    containerView = UIView(frame: frame)
+    containerView = LiquidGlassTabBarContainerView(frame: frame)
     self.hostViewController = hostViewController
     channel = FlutterMethodChannel(
       name: "liquid-glass-tab-bar-view/\(viewId)",
@@ -876,6 +894,9 @@ final class LiquidGlassTabBarPlatformView: NSObject, FlutterPlatformView {
 
     super.init()
     suppressObserver = GlassSuppressObserver(view: containerView)
+    containerView.onLayoutChanged = { [weak self] in
+      self?.applyChromeLayoutIfNeeded()
+    }
     setupView(arguments: args as? [String: Any])
     setupMethodChannelHandler()
   }
@@ -909,19 +930,94 @@ final class LiquidGlassTabBarPlatformView: NSObject, FlutterPlatformView {
     containerView.layer.isOpaque = false
     containerView.addSubview(nativeView)
 
-    // Constrain the native view to the bottom portion of the container.
-    // The top `glassOverflow` points stay empty so the glass effect can
-    // overflow into them via clipsToBounds = false without extending
-    // beyond the platform view frame that Flutter composites.
-    let glassOverflow = config.glassOverflow
-    NSLayoutConstraint.activate([
-      nativeView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-      nativeView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-      nativeView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: glassOverflow),
-      nativeView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
-    ])
-
+    glassOverflow = config.glassOverflow
     nativeTabBarControllerView = nativeView
+    applyChromeLayoutIfNeeded(force: true)
+  }
+
+  private func applyChromeLayoutIfNeeded(force: Bool = false) {
+    guard let nativeView = nativeTabBarControllerView else {
+      return
+    }
+
+    let resolved = LiquidGlassTabBarChromeLayout.resolve(for: containerView)
+    if !force, resolved == chromeLayout {
+      reportChromeInsetsIfNeeded(force: false)
+      return
+    }
+
+    chromeLayout = resolved
+    NSLayoutConstraint.deactivate(nativeViewConstraints)
+    nativeViewConstraints.removeAll()
+
+    switch resolved {
+    case .horizontalBottom:
+      nativeViewConstraints = [
+        nativeView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+        nativeView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+        nativeView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: glassOverflow),
+        nativeView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+      ]
+
+    case .verticalTrailing:
+      nativeViewConstraints = [
+        nativeView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+        nativeView.topAnchor.constraint(equalTo: containerView.topAnchor),
+        nativeView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+        nativeView.widthAnchor.constraint(
+          greaterThanOrEqualToConstant: LiquidGlassTabBarChromeLayout.defaultVerticalHitWidth
+        ),
+        nativeView.leadingAnchor.constraint(
+          greaterThanOrEqualTo: containerView.leadingAnchor
+        ),
+      ]
+
+    case .verticalLeading:
+      nativeViewConstraints = [
+        nativeView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+        nativeView.topAnchor.constraint(equalTo: containerView.topAnchor),
+        nativeView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+        nativeView.widthAnchor.constraint(
+          greaterThanOrEqualToConstant: LiquidGlassTabBarChromeLayout.defaultVerticalHitWidth
+        ),
+        nativeView.trailingAnchor.constraint(
+          lessThanOrEqualTo: containerView.trailingAnchor
+        ),
+      ]
+    }
+
+    NSLayoutConstraint.activate(nativeViewConstraints)
+    reportChromeInsetsIfNeeded(force: true)
+  }
+
+  private func reportChromeInsetsIfNeeded(force: Bool) {
+    guard let window = containerView.window else {
+      return
+    }
+
+    let tabBar = nativeTabBarControllerView?.tabBarController.tabBar
+    tabBar?.layoutIfNeeded()
+
+    let tabBarFrameInWindow: CGRect?
+    if let tabBar {
+      tabBarFrameInWindow = tabBar.convert(tabBar.bounds, to: window)
+    } else {
+      tabBarFrameInWindow = nil
+    }
+
+    let payload = chromeLayout.payload(
+      containerBounds: containerView.bounds,
+      tabBarFrameInWindow: tabBarFrameInWindow,
+      windowBounds: window.bounds,
+      safeAreaInsets: window.safeAreaInsets
+    )
+
+    if !force, NSDictionary(dictionary: payload).isEqual(to: lastChromePayload ?? [:]) {
+      return
+    }
+
+    lastChromePayload = payload
+    channel.invokeMethod("onChromeInsetsChanged", arguments: payload)
   }
 
   private func setupMethodChannelHandler() {

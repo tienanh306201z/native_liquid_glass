@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### `LiquidGlassTabBar` — iPhone Duo / vertical system tab bar
+
+- iOS reports chrome layout changes (`onChromeInsetsChanged`) when the system moves the tab bar into a vertical column (e.g. iPhone Duo landscape). Payload includes content padding and a hit-target size for the platform view.
+- The native platform view expands to a full-height strip on the bar edge when vertical, so taps register on the tab bar instead of passing through to Flutter content underneath.
+- Dart: `LiquidGlassTabBarChromeInsets`, `LiquidGlassTabBar.onChromeInsetsChanged`, and adaptive platform-view sizing when vertical.
+
 ## 0.3.1
 
 ### Docs

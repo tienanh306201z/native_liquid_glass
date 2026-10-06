@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'liquid_glass_tab_bar_chrome.dart';
 import 'shares/liquid_glass_icon.dart';
 import 'utils/liquid_glass_route_suppression.dart';
 import 'utils/native_liquid_glass_utils.dart';
@@ -207,6 +208,9 @@ class LiquidGlassTabBar extends StatefulWidget {
   /// Optional iOS native item width.
   final double? iosItemWidth;
 
+  /// Called when iOS reports a layout change (e.g. iPhone Duo vertical tab bar).
+  final ValueChanged<LiquidGlassTabBarChromeInsets>? onChromeInsetsChanged;
+
   const LiquidGlassTabBar({
     super.key,
     required this.items,
@@ -214,6 +218,7 @@ class LiquidGlassTabBar extends StatefulWidget {
     required this.currentIndex,
     required this.onTabSelected,
     this.onActionButtonPressed,
+    this.onChromeInsetsChanged,
     this.width,
     this.height = 72,
     this.showLabels = true,
@@ -238,6 +243,7 @@ class LiquidGlassTabBar extends StatefulWidget {
 class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassRouteSuppression {
   MethodChannel? _nativeChannel;
   @override MethodChannel? get suppressionChannel => _nativeChannel;
+  LiquidGlassTabBarChromeInsets? _chromeInsets;
   List<Map<String, Object?>>? _nativeTabs;
   Map<String, Object?>? _nativeActionButton;
   int? _lastNativeSelectedIndex;
@@ -332,6 +338,14 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
         return;
       case 'onActionButtonPressed':
         widget.onActionButtonPressed?.call();
+        return;
+      case 'onChromeInsetsChanged':
+        final next = LiquidGlassTabBarChromeInsets.fromPlatform(call.arguments);
+        if (next == _chromeInsets) {
+          return;
+        }
+        setState(() => _chromeInsets = next);
+        widget.onChromeInsetsChanged?.call(next);
         return;
       default:
         return;
@@ -588,11 +602,48 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     return MediaQuery.sizeOf(context).width;
   }
 
+  bool _isVerticalChrome(BuildContext context) {
+    if (_chromeInsets?.isVertical == true) {
+      return true;
+    }
+    final size = MediaQuery.sizeOf(context);
+    return size.width > size.height && size.width >= 700;
+  }
+
+  double _resolveHeight(BuildContext context, BoxConstraints constraints) {
+    if (!_isVerticalChrome(context)) {
+      return widget.height + _kGlassEffectOverflow;
+    }
+    final fromChrome = _chromeInsets?.hitTargetHeight ?? 0;
+    if (fromChrome > 0) {
+      return fromChrome;
+    }
+    if (constraints.hasBoundedHeight && constraints.maxHeight.isFinite && constraints.maxHeight > 0) {
+      return constraints.maxHeight;
+    }
+    return MediaQuery.sizeOf(context).height;
+  }
+
+  double _resolvePlatformWidth(BuildContext context, BoxConstraints constraints) {
+    if (!_isVerticalChrome(context)) {
+      return _resolveWidth(context, constraints);
+    }
+    final fromChrome = _chromeInsets?.hitTargetWidth ?? 0;
+    if (fromChrome > 0) {
+      return fromChrome;
+    }
+    if (widget.width != null) {
+      return widget.width!;
+    }
+    return LiquidGlassTabBarChromeInsets.defaultVerticalHitWidth;
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final resolvedWidth = _resolveWidth(context, constraints);
+        final resolvedWidth = _resolvePlatformWidth(context, constraints);
+        final resolvedHeight = _resolveHeight(context, constraints);
         final actionButtonReady = widget.iosActionButton == null || _nativeActionButton != null;
 
         if (NativeLiquidGlassUtils.supportsLiquidGlass && _nativeTabs != null && actionButtonReady) {
@@ -600,7 +651,13 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
           // background, labels, and icons follow the Flutter theme instead of
           // the device appearance (which made them invert after navigation).
           final brightness = Theme.of(context).brightness == Brightness.dark ? 'dark' : 'light';
-          return _buildNativeIosTabBar(resolvedWidth, _nativeTabs!, _nativeActionButton, brightness);
+          return _buildNativeIosTabBar(
+            resolvedWidth,
+            resolvedHeight,
+            _nativeTabs!,
+            _nativeActionButton,
+            brightness,
+          );
         }
 
         return const SizedBox();
@@ -608,7 +665,13 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
     );
   }
 
-  Widget _buildNativeIosTabBar(double resolvedWidth, List<Map<String, Object?>> nativeTabs, Map<String, Object?>? nativeActionButton, String brightness) {
+  Widget _buildNativeIosTabBar(
+    double resolvedWidth,
+    double resolvedHeight,
+    List<Map<String, Object?>> nativeTabs,
+    Map<String, Object?>? nativeActionButton,
+    String brightness,
+  ) {
     final nativeViewKey = ValueKey<int>(
       Object.hash(
         widget.showLabels,
@@ -629,7 +692,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar> with LiquidGlassR
 
     return SizedBox(
       width: resolvedWidth,
-      height: widget.height + _kGlassEffectOverflow,
+      height: resolvedHeight,
       child: UiKitView(
         key: nativeViewKey,
         viewType: 'liquid-glass-tab-bar-view',

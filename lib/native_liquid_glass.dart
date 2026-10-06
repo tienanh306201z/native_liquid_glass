@@ -17,6 +17,7 @@ export 'src/liquid_glass_sheet.dart';
 export 'src/liquid_glass_slider.dart';
 export 'src/liquid_glass_stepper.dart';
 export 'src/liquid_glass_tab_bar.dart';
+export 'src/liquid_glass_tab_bar_chrome.dart';
 export 'src/liquid_glass_toggle.dart';
 export 'src/liquid_glass_toolbar.dart';
 export 'src/shares/liquid_glass_border.dart';
